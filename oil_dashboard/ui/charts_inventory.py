@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
+from analysis.eia_analysis import compute_eia_analysis
 
 
 def render_inventory_tab(eia_data):
@@ -23,6 +24,23 @@ def render_inventory_tab(eia_data):
     if not crude and not gasoline and not distillate and not spr:
         st.warning("EIA inventory data unavailable. Verify your API key is valid.")
         return
+
+    # EIA Analysis summary
+    analysis = compute_eia_analysis(eia_data)
+    if analysis["by_product"]:
+        signal_labels = {1: "🟢 Bullish", -1: "🔴 Bearish", 0: "⬜ Neutral"}
+        st.markdown(f"### EIA Report Summary — Composite Score: **{analysis['composite_score']:+d}**")
+        cols = st.columns(4)
+        for col, (key, prod) in zip(cols, analysis["by_product"].items()):
+            label = signal_labels.get(prod["signal"], "")
+            col.metric(
+                f"{label} {key.title()}",
+                f"{prod['current_change']:+.1f} M",
+                prod["trend_label"],
+            )
+        if analysis["strongest_reading"]:
+            st.caption(f"Strongest signal: **{analysis['strongest_reading'].title()}** — deviation is {abs(analysis['by_product'][analysis['strongest_reading']]['deviation']):.1f} M from 4-week trend")
+        st.markdown("---")
 
     fig = make_subplots(
         rows=4, cols=1,
