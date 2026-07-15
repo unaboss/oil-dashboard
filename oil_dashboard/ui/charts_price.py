@@ -123,7 +123,6 @@ def render_price_tab(market_data, events_df):
         template="plotly_dark",
         dragmode="pan",
     )
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
 
     st.plotly_chart(fig, use_container_width=True, config={
         "scrollZoom": True,

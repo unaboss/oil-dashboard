@@ -54,7 +54,6 @@ def render_cot_tab(cot_data, market_data):
             template="plotly_dark",
             dragmode="pan",
         )
-        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
         fig.update_yaxes(title_text="WTI ($/bbl)", secondary_y=False)
         fig.update_yaxes(title_text="Net Contracts", secondary_y=True)
 

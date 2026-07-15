@@ -75,7 +75,6 @@ def _render_rbob_vs_pump(rbob, retail):
         template="plotly_dark",
         dragmode="pan",
     )
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
     fig.update_yaxes(title_text="RBOB ($/gal)", secondary_y=False)
     fig.update_yaxes(title_text="Retail ($/gal)", secondary_y=True)
 
@@ -85,7 +84,6 @@ def _render_rbob_vs_pump(rbob, retail):
         "displaylogo": False,
         "modeBarButtonsToRemove": ["lasso2d", "select2d"],
     })
-
     st.caption("Retail pump price typically lags RBOB by 5-10 days. RBOB leads the move.")
 
 
@@ -106,7 +104,6 @@ def _render_trends(trends_data):
         template="plotly_dark",
         dragmode="pan",
     )
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
     st.plotly_chart(fig, use_container_width=True, config={
         "scrollZoom": True,
         "displayModeBar": True,
@@ -135,7 +132,6 @@ def _render_dxy(dxy):
         template="plotly_dark",
         dragmode="pan",
     )
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
     st.plotly_chart(fig, use_container_width=True, config={
         "scrollZoom": True,
         "displayModeBar": True,
