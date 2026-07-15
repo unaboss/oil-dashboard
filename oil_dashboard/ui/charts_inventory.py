@@ -33,13 +33,13 @@ def render_inventory_tab(eia_data):
         cols = st.columns(4)
         for col, (key, prod) in zip(cols, analysis["by_product"].items()):
             label = signal_labels.get(prod["signal"], "")
-            col.metric(
-                f"{label} {key.title()}",
-                f"{prod['current_change']:+.1f} M",
-                prod["trend_label"],
-            )
+            change = prod["current_change"]
+            display = f"{change:+.1f} M" if change is not None else "N/A"
+            col.metric(f"{label} {key.title()}", display, prod["trend_label"])
         if analysis["strongest_reading"]:
-            st.caption(f"Strongest signal: **{analysis['strongest_reading'].title()}** — deviation is {abs(analysis['by_product'][analysis['strongest_reading']]['deviation']):.1f} M from 4-week trend")
+            dev = analysis["by_product"][analysis["strongest_reading"]]["deviation"]
+            dev_str = f"{abs(dev):.1f} M" if dev is not None else "N/A"
+            st.caption(f"Strongest signal: **{analysis['strongest_reading'].title()}** — deviation is {dev_str} from 4-week trend")
         st.markdown("---")
 
     fig = make_subplots(
