@@ -45,7 +45,8 @@ def compute_confluence(market_data, eia_data, cot_data, latest_only=True):
     wti_close = wti.get("close", [])
 
     if not wti_dates:
-        return _empty_score(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        empty = _empty_score(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        return [empty] if not latest_only else empty
 
     for i in range(len(wti_dates)):
         day_score = {
