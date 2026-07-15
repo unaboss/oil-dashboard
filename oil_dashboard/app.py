@@ -1,1 +1,146 @@
-placeholder
+"""Oil Dashboard — WTI CFD Swing Trader Dashboard.
+
+Streamlit app. 8 tabs, sidebar with refresh and schedule.
+"""
+
+import streamlit as st
+import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
+
+st.set_page_config(
+    page_title="Oil Dashboard",
+    page_icon="🛢️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+from config import ROOT_DIR
+from ui.sidebar import render_sidebar
+from ui.charts_price import render_price_tab
+from ui.charts_curve import render_curve_tab
+from ui.charts_cot import render_cot_tab
+from ui.charts_inventory import render_inventory_tab
+from ui.charts_sentiment import render_sentiment_tab
+from ui.charts_confluence import render_confluence_tab
+from ui.calendar_view import render_calendar_tab
+from ui.charts_audit import render_audit_tab
+from ui.charts_research import render_research_tab
+
+from data.fetcher_yfinance import get_all_market_data
+from data.fetcher_eia import get_all_eia_data
+from data.fetcher_cot import get_cot_data
+from data.fetcher_aaa import get_aaa_gas_price
+from data.fetcher_trends import get_google_trends
+from data.fetcher_bots import get_bot_mentions
+
+
+@st.cache_data(ttl=3600)
+def load_market_data(start, end):
+    return get_all_market_data(start=str(start), end=str(end))
+
+
+@st.cache_data(ttl=86400)
+def load_eia_data(start, end):
+    return get_all_eia_data(start=str(start), end=str(end))
+
+
+@st.cache_data(ttl=86400)
+def load_cot_data():
+    return get_cot_data()
+
+
+@st.cache_data(ttl=86400)
+def load_trends_data(start, end):
+    return get_google_trends(start=str(start), end=str(end))
+
+
+@st.cache_data(ttl=86400)
+def load_bot_trends_data(start, end):
+    return get_bot_mentions(start=str(start), end=str(end))
+
+
+@st.cache_data(ttl=86400)
+def load_aaa_data():
+    return get_aaa_gas_price()
+
+
+@st.cache_data(ttl=3600)
+def load_events():
+    events_path = ROOT_DIR / "data" / "events.csv"
+    if events_path.exists():
+        return pd.read_csv(events_path)
+    return None
+
+
+def main():
+    col_title, col_ref = st.columns([5, 1])
+    with col_title:
+        st.title("Oil Dashboard")
+    with col_ref:
+        st.caption("")
+
+    start_date, end_date = render_sidebar()
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+
+    with st.spinner("Loading market data..."):
+        market_data = load_market_data(start_str, end_str)
+
+    with st.spinner("Loading EIA data..."):
+        eia_data = load_eia_data(start_str, end_str)
+
+    with st.spinner("Loading COT data..."):
+        cot_data = load_cot_data()
+
+    with st.spinner("Loading sentiment data..."):
+        trends_data = load_trends_data(start_str, end_str)
+
+    with st.spinner("Loading bot-mention data..."):
+        bot_trends_data = load_bot_trends_data(start_str, end_str)
+
+    events_df = load_events()
+
+    tabs = st.tabs([
+        "1. Price & Flows",
+        "2. Curve & Divergence",
+        "3. Positioning & COT",
+        "4. Inventories",
+        "5. Retail & Sentiment",
+        "6. Confluence Score",
+        "7. Trade Calendar",
+        "8. Signal Audit",
+        "9. Research & Narrative",
+    ])
+
+    with tabs[0]:
+        render_price_tab(market_data, events_df)
+
+    with tabs[1]:
+        render_curve_tab(market_data)
+
+    with tabs[2]:
+        render_cot_tab(cot_data, market_data)
+
+    with tabs[3]:
+        render_inventory_tab(eia_data)
+
+    with tabs[4]:
+        render_sentiment_tab(market_data, eia_data, trends_data)
+
+    with tabs[5]:
+        render_confluence_tab(market_data, eia_data, cot_data)
+
+    with tabs[6]:
+        render_calendar_tab(market_data, eia_data, cot_data)
+
+    with tabs[7]:
+        render_audit_tab(market_data, eia_data, cot_data)
+
+    with tabs[8]:
+        render_research_tab(market_data, bot_trends_data, start_str, end_str)
+
+
+if __name__ == "__main__":
+    main()
