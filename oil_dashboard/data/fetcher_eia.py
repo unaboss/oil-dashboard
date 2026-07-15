@@ -16,6 +16,7 @@ CACHE_KEY_CRUDE = "eia_crude"
 CACHE_KEY_GASOLINE = "eia_gasoline"
 CACHE_KEY_DISTILLATE = "eia_distillate"
 CACHE_KEY_RETAIL = "eia_retail_gas"
+CACHE_KEY_SPR = "eia_spr"
 
 
 def _eia_weekly(route, facets, data_cols, cache_key, start=DEFAULT_START, end=DEFAULT_END):
@@ -114,6 +115,18 @@ def get_retail_gas_price(start=DEFAULT_START, end=DEFAULT_END):
     )
 
 
+def get_spr_stocks(start=DEFAULT_START, end=DEFAULT_END):
+    """Weekly U.S. Strategic Petroleum Reserve crude oil ending stocks (thousand barrels).
+    Series WCRSTUS1 = Ending Stocks of Crude Oil in SPR."""
+    return _eia_weekly(
+        route="/petroleum/stoc/wstk",
+        facets={"duoarea": "NUS", "product": "EPC0", "series": "WCRSTUS1"},
+        data_cols=["value"],
+        cache_key=CACHE_KEY_SPR,
+        start=start, end=end,
+    )
+
+
 def get_weekly_changes(data_dict):
     """Compute week-over-week changes for inventory data."""
     if data_dict is None:
@@ -128,9 +141,12 @@ def get_weekly_changes(data_dict):
 
 
 def get_all_eia_data(start=DEFAULT_START, end=DEFAULT_END):
+    spr_raw = get_spr_stocks(start, end)
     return {
         "crude": get_weekly_changes(get_crude_stocks(start, end)),
         "gasoline": get_weekly_changes(get_gasoline_stocks(start, end)),
         "distillate": get_weekly_changes(get_distillate_stocks(start, end)),
         "retail_gas": get_retail_gas_price(start, end),
+        "spr": get_weekly_changes(spr_raw),
+        "spr_level": spr_raw,
     }

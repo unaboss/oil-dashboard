@@ -17,19 +17,22 @@ def render_inventory_tab(eia_data):
     crude = eia_data.get("crude")
     gasoline = eia_data.get("gasoline")
     distillate = eia_data.get("distillate")
+    spr = eia_data.get("spr")
+    spr_level = eia_data.get("spr_level")
 
-    if not crude and not gasoline and not distillate:
+    if not crude and not gasoline and not distillate and not spr:
         st.warning("EIA inventory data unavailable. Verify your API key is valid.")
         return
 
     fig = make_subplots(
-        rows=3, cols=1,
+        rows=4, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
         subplot_titles=(
             "Crude Oil Stocks Change (M bbl)",
             "Gasoline Stocks Change (M bbl)",
             "Distillate Stocks Change (M bbl)",
+            "Strategic Petroleum Reserve Change (M bbl)",
         ),
     )
 
@@ -53,9 +56,10 @@ def render_inventory_tab(eia_data):
     _plot_inventory(fig, crude, 1, "Crude", "#4CAF50", "#F44336")
     _plot_inventory(fig, gasoline, 2, "Gasoline", "#4CAF50", "#F44336")
     _plot_inventory(fig, distillate, 3, "Distillate", "#4CAF50", "#F44336")
+    _plot_inventory(fig, spr, 4, "SPR", "#FF9800", "#FF9800")
 
     fig.update_layout(
-        height=600,
+        height=750,
         showlegend=False,
         template="plotly_dark",
         hovermode="x unified",
@@ -70,7 +74,7 @@ def render_inventory_tab(eia_data):
     })
 
     st.markdown("### Key Levels")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     def _latest_change(data, label, col):
         if data and data.get("changes"):
@@ -86,6 +90,15 @@ def render_inventory_tab(eia_data):
     _latest_change(gasoline, "Gasoline", col2)
     _latest_change(distillate, "Distillate", col3)
 
+    if spr_level and spr_level.get("values"):
+        current = spr_level["values"][0]
+        if current is not None and not pd.isna(current):
+            col4.metric("SPR Level", f"{current / 1000:.0f} M bbl")
+        else:
+            col4.metric("SPR Level", "N/A")
+    else:
+        col4.metric("SPR Level", "N/A")
+
     st.markdown("---")
     with st.expander("How to Read This Tab", expanded=False):
         st.markdown("""
@@ -93,14 +106,23 @@ def render_inventory_tab(eia_data):
         Every Wednesday morning, the US Energy Information Administration releases the Weekly Petroleum Status Report. It tells us how much crude oil, gasoline, and distillate (diesel/heating oil) is sitting in US storage tanks.
 
         **What the charts show:**
-        - **Green bars** = inventories went DOWN (a "draw"). This means more oil was consumed than produced. Bullish for oil prices — demand is outpacing supply.
-        - **Red bars** = inventories went UP (a "build"). More oil is piling up in storage. Bearish — supply is outpacing demand.
+        - **Green bars** = inventories went DOWN (a "draw"). Bullish for oil prices — demand is outpacing supply.
+        - **Red bars** = inventories went UP (a "build"). Bearish — supply is outpacing demand.
         - The taller the bar, the bigger the surprise versus expectations.
 
         **The three products:**
         1. **Crude Oil** — The raw stuff. A big draw means refineries are processing a lot. A big build means oil is backing up.
         2. **Gasoline** — Made from crude. Big draw during summer = people driving a lot (bullish for crude demand). Big build in winter = normal seasonal pattern.
         3. **Distillate** — Diesel, jet fuel, heating oil. A big draw can signal strong industrial activity or cold weather.
+
+        **Strategic Petroleum Reserve (bottom chart):**
+        - Shows how much oil the US government is adding or removing from the SPR — the nation's emergency stockpile.
+        - **Orange bars** — Government released oil (draw). Adds supply to the market, bearish for prices.
+        - **Orange bars upward** — Government is buying back oil (refill). Takes supply off the market, bullish.
+        - The "SPR Level" metric shows the total barrels remaining in the reserve. Full capacity is ~714 million barrels.
+        - In a supply crisis (war, OPEC cuts), large SPR releases are a major intervention. When you see big orange bars, the government is trying to cap prices.
+        - Post-crisis refill programs create a steady demand floor as the government buys back barrels.
+        - If SPR gets too low (under 400M), the cushion for future emergencies shrinks — adds risk premium to oil prices.
 
         **How to use it:**
         - A large crude draw + rising gasoline demand = strong fundamental support for higher prices.
