@@ -1,0 +1,29 @@
+# Secrets
+.env
+
+# Reference documents (not source)
+*.odt
+*.pdf
+
+# Cache
+**/_cache_*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
