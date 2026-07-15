@@ -70,7 +70,9 @@ def load_aaa_data():
 def load_events():
     events_path = ROOT_DIR / "data" / "events.csv"
     if events_path.exists():
-        return pd.read_csv(events_path)
+        events_df = pd.read_csv(events_path)
+        events_df["date"] = pd.to_datetime(events_df["date"].astype(str), format="%Y%m%d")
+        return events_df
     return None
 
 
