@@ -66,7 +66,6 @@ def load_aaa_data():
     return get_aaa_gas_price()
 
 
-@st.cache_data(ttl=3600)
 def load_events():
     events_path = ROOT_DIR / "data" / "events.csv"
     if events_path.exists():
