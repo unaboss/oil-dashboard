@@ -19,7 +19,7 @@ WTI Crude Oil swing-trading dashboard built with Streamlit.
 ### Install
 
 ```
-git clone https://github.com/YOUR_USERNAME/oil-dashboard.git
+git clone https://github.com/unaboss/oil-dashboard.git
 cd oil-dashboard
 pip install -r oil_dashboard/requirements.txt
 ```
