@@ -28,6 +28,7 @@ from ui.calendar_view import render_calendar_tab
 from ui.charts_audit import render_audit_tab
 from ui.charts_research import render_research_tab
 from ui.charts_fibonacci import render_fibonacci_tab
+from ui.charts_eia_analysis import render_eia_analysis_tab
 
 from data.fetcher_yfinance import get_all_market_data
 from data.fetcher_eia import get_all_eia_data
@@ -115,6 +116,7 @@ def main():
         "8. Signal Audit",
         "9. Research & Narrative",
         "10. Fibonacci Retracement",
+        "11. EIA Release Analysis",
     ])
 
     with tabs[0]:
@@ -146,6 +148,9 @@ def main():
 
     with tabs[9]:
         render_fibonacci_tab(market_data)
+
+    with tabs[10]:
+        render_eia_analysis_tab(eia_data)
 
 
 if __name__ == "__main__":
