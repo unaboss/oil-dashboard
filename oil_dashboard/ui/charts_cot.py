@@ -52,11 +52,18 @@ def render_cot_tab(cot_data, market_data):
             height=450,
             hovermode="x unified",
             template="plotly_dark",
+            dragmode="pan",
         )
+        fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
         fig.update_yaxes(title_text="WTI ($/bbl)", secondary_y=False)
         fig.update_yaxes(title_text="Net Contracts", secondary_y=True)
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "displaylogo": False,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+        })
 
     st.markdown("---")
     with st.expander("How to Read This Tab", expanded=False):

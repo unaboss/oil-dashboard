@@ -29,7 +29,11 @@ def render_audit_tab(market_data, eia_data, cot_data):
             title={"text": "Hit Rate"},
         ))
         fig.update_layout(height=200, template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "displaylogo": False,
+        })
         st.caption(f"{audit['total_signals']} signals, {audit['missed_count']} missed moves")
 
     tab_conf, tab_missed, tab_false = st.tabs(["Confirmed", "Missed", "False Signals"])

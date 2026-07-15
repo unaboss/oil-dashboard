@@ -73,11 +73,18 @@ def _render_rbob_vs_pump(rbob, retail):
         height=400,
         hovermode="x unified",
         template="plotly_dark",
+        dragmode="pan",
     )
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
     fig.update_yaxes(title_text="RBOB ($/gal)", secondary_y=False)
     fig.update_yaxes(title_text="Retail ($/gal)", secondary_y=True)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
 
     st.caption("Retail pump price typically lags RBOB by 5-10 days. RBOB leads the move.")
 
@@ -97,8 +104,15 @@ def _render_trends(trends_data):
         height=300,
         hovermode="x unified",
         template="plotly_dark",
+        dragmode="pan",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
     st.caption("Spikes in 'gas prices' searches often coincide with media coverage — may mark sentiment extremes.")
 
 
@@ -119,6 +133,13 @@ def _render_dxy(dxy):
         height=300,
         hovermode="x unified",
         template="plotly_dark",
+        dragmode="pan",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
     st.caption("DXY up = headwind for oil (priced in USD). DXY down = tailwind.")

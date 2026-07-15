@@ -106,7 +106,11 @@ def _render_trump(market_data, start, end):
             title={"text": "% Lagging (announced after move)"},
         ))
         fig.update_layout(height=220, template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "displaylogo": False,
+        })
         st.caption(f"{study['classified']} classified of {study['total']} statements")
 
     with col_sum:
@@ -121,8 +125,13 @@ def _render_trump(market_data, start, end):
             height=220,
             template="plotly_dark",
             yaxis_title="count",
+            dragmode="pan",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "displaylogo": False,
+        })
 
     events = study["events"]
     if events:
@@ -148,8 +157,14 @@ def _render_trump(market_data, start, end):
             xaxis_title="5d return BEFORE statement (%)",
             yaxis_title="3d return AFTER statement (%)",
             hovermode="closest",
+            dragmode="pan",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "displaylogo": False,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+        })
 
     st.markdown("#### Statements")
     for e in events:
@@ -181,8 +196,15 @@ def _render_bots(bot_trends_data, market_data):
         height=350,
         template="plotly_dark",
         hovermode="x unified",
+        dragmode="pan",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Latest index", narrative["latest_index"])
@@ -197,8 +219,14 @@ def _render_bots(bot_trends_data, market_data):
         fig2.add_trace(go.Scatter(
             x=dates, y=vals, mode="lines", name=kw,
         ))
-    fig2.update_layout(height=350, template="plotly_dark", hovermode="x unified")
-    st.plotly_chart(fig2, use_container_width=True)
+    fig2.update_layout(height=350, template="plotly_dark", hovermode="x unified", dragmode="pan")
+    fig2.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
+    st.plotly_chart(fig2, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
     st.caption("Narrative proxy only — search interest, not actual bot trading volume.")
 
 
@@ -233,8 +261,13 @@ def _render_traders():
         title="YTD return & max drawdown (worst at top)",
         height=420, template="plotly_dark", barmode="group",
         xaxis_title="%", yaxis=dict(autorange="reversed"),
+        dragmode="pan",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+    })
 
     st.markdown("#### Detail")
     df = pd.DataFrame(rows)

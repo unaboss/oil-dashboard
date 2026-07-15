@@ -61,9 +61,16 @@ def render_curve_tab(market_data):
         legend=dict(orientation="h", y=1.12),
         hovermode="x unified",
         template="plotly_dark",
+        dragmode="pan",
     )
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
 
     st.markdown("---")
     with st.expander("How to Read This Tab", expanded=False):

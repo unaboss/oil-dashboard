@@ -75,7 +75,11 @@ def render_confluence_tab(market_data, eia_data, cot_data):
         title={"text": "Confluence Score"},
     ))
     fig.update_layout(height=250, template="plotly_dark")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+    })
 
     st.markdown("---")
     with st.expander("How to Read This Tab", expanded=False):

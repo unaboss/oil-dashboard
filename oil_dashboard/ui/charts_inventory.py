@@ -58,9 +58,17 @@ def render_inventory_tab(eia_data):
         height=600,
         showlegend=False,
         template="plotly_dark",
+        hovermode="x unified",
+        dragmode="pan",
     )
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.03))
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    })
 
     st.markdown("### Key Levels")
     col1, col2, col3 = st.columns(3)
