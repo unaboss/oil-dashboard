@@ -65,6 +65,21 @@ def render_curve_tab(market_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **Brent and WTI** are the two most important types of crude oil. Brent is the global benchmark (mined in the North Sea), and WTI is the US benchmark. They usually trade close together, but the gap between them tells you a lot.
+
+        **What the spread means:**
+        - When Brent is more expensive than WTI (spread > 0), the global market is tight. Buyers are willing to pay a premium for Brent. This is called **backwardation** and is generally bullish.
+        - When WTI catches up or exceeds Brent (spread < 0), it sometimes means paper traders are bidding up WTI faster than physical buyers can absorb it. This is called **contango** and can be a warning sign.
+
+        **Bottom chart — the spread as colored bars:**
+        - Green = Brent premium (normal/tight market).
+        - Red = WTI premium (unusual — pay attention).
+        - The white dashed line is the average spread. When the current spread is far from average, it may revert back.
+        """)
+
     # Interpretation
     st.markdown("### Interpretation")
     col1, col2 = st.columns(2)

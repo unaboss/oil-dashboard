@@ -121,3 +121,21 @@ def render_price_tab(market_data, events_df):
     fig.update_xaxes(rangeslider=dict(visible=False))
 
     st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **What you're looking at:**
+        - **Top chart** — WTI crude oil price (the main thing you're trading). The orange line is the daily closing price.
+        - **Blue dotted line** — 20-day moving average. Think of it as the "short-term fair price." When price is above it, short-term momentum is up.
+        - **Red dotted line** — 50-day moving average. The "medium-term fair price." Above this = the trend has been healthy for a while.
+        - **Middle chart** — The RBOB-WTI crack spread. This measures how much more expensive gasoline (RBOB) is than crude oil. A rising crack means refineries are making more profit — they'll want to buy more crude, which pushes WTI up.
+        - **Green dotted line** — 5-day average of the crack spread. If the crack is above this average, margins are improving (bullish for crude demand).
+        - **Bottom chart** — Volume bars. Tall green bars = heavy buying on up days. Tall red bars = heavy selling on down days. When volume spikes above its 20-day average (purple line), the price move has conviction behind it.
+
+        **How to use this for trading:**
+        1. Price above both MAs + volume rising = trend is strong, ride it.
+        2. Price falling through MAs on rising volume = trend may be reversing, be cautious.
+        3. Crack spread rising = refineries are profitable, expect more crude buying.
+        4. White dashed vertical lines mark major events (OPEC meetings, EIA reports, etc.) — check if the market reacted or ignored them.
+        """)

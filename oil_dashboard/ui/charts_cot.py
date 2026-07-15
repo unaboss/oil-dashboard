@@ -58,10 +58,21 @@ def render_cot_tab(cot_data, market_data):
 
         st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("""
-    ### How to Read
-    - **MM extreme long** (>80th percentile) + price overbought = reversal imminent
-    - **MM extreme short** (<20th percentile) + price oversold = rally setup
-    - **Producers opposite position** = the smart money is hedging against specs
-    - This data is weekly (Tue positions, released Fri) — useful for swing, not intraday
-    """)
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **What is the COT report?**
+        Every week, the CFTC (a US regulator) publishes the Commitments of Traders report. It shows how many futures contracts different groups are holding. The most important group for us is **Managed Money** — these are hedge funds and professional speculators.
+
+        **What the numbers mean:**
+        - **Managed Money Long** — How many contracts hedge funds are betting WILL go up.
+        - **Managed Money Short** — How many contracts they're betting WILL go down.
+        - **MM Net Position** — Long minus short. Positive = overall bullish bet, negative = overall bearish bet.
+
+        **Why this matters:**
+        - When Managed Money is extremely long (everyone's betting on higher prices), there's nobody left to buy. A reversal is likely.
+        - When they're extremely short, any good news can trigger a rapid rally as they scramble to close positions (a "short squeeze").
+        - The red warning banner tells you when positioning is at an extreme right now.
+
+        **Important:** This data is a weekly snapshot released every Friday, covering positions from the previous Tuesday. It's most useful for swing trades (days to weeks), not intraday trading.
+        """)

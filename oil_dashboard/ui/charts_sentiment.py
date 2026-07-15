@@ -24,6 +24,26 @@ def render_sentiment_tab(market_data, eia_data, trends_data):
     with tab_inner3:
         _render_dxy(dxy)
 
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **RBOB vs Pump Price (top inner tab):**
+        - RBOB is the futures price of gasoline. US Retail Gas is what you pay at the pump.
+        - RBOB moves first (futures traders react to news instantly). Retail prices lag by about 5-10 days because gas stations adjust slowly.
+        - When RBOB rises but pump prices haven't caught up yet, pump prices will likely follow.
+        - When RBOB falls sharply, expect cheaper gas at the pump in about a week.
+
+        **Google Trends (middle inner tab):**
+        - Shows how many people are searching for "oil price" and "gas prices" in the US.
+        - Spikes in searches often happen when prices are in the news — which is usually near market extremes (panicking or euphoric).
+        - A search spike + price peak = retail sentiment may be too one-sided. Consider fading the crowd.
+
+        **DXY Dollar Index (bottom inner tab):**
+        - Oil is priced in US dollars worldwide. When the dollar gets stronger (DXY goes up), oil becomes more expensive for foreign buyers → demand drops → oil prices tend to fall.
+        - When the dollar weakens (DXY goes down), oil is cheaper for the rest of the world → demand rises → oil prices tend to rise.
+        - Think of it as: **DXY up = headwind for oil. DXY down = tailwind for oil.**
+        """)
+
 
 def _render_rbob_vs_pump(rbob, retail):
     if not rbob or not rbob.get("dates"):

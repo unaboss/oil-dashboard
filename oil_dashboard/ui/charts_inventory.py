@@ -78,3 +78,25 @@ def render_inventory_tab(eia_data):
     _latest_change(crude, "Crude", col1)
     _latest_change(gasoline, "Gasoline", col2)
     _latest_change(distillate, "Distillate", col3)
+
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **What is EIA data?**
+        Every Wednesday morning, the US Energy Information Administration releases the Weekly Petroleum Status Report. It tells us how much crude oil, gasoline, and distillate (diesel/heating oil) is sitting in US storage tanks.
+
+        **What the charts show:**
+        - **Green bars** = inventories went DOWN (a "draw"). This means more oil was consumed than produced. Bullish for oil prices — demand is outpacing supply.
+        - **Red bars** = inventories went UP (a "build"). More oil is piling up in storage. Bearish — supply is outpacing demand.
+        - The taller the bar, the bigger the surprise versus expectations.
+
+        **The three products:**
+        1. **Crude Oil** — The raw stuff. A big draw means refineries are processing a lot. A big build means oil is backing up.
+        2. **Gasoline** — Made from crude. Big draw during summer = people driving a lot (bullish for crude demand). Big build in winter = normal seasonal pattern.
+        3. **Distillate** — Diesel, jet fuel, heating oil. A big draw can signal strong industrial activity or cold weather.
+
+        **How to use it:**
+        - A large crude draw + rising gasoline demand = strong fundamental support for higher prices.
+        - A large crude build + falling product demand = weak fundamentals, be careful buying.
+        - The "Key Levels" metrics show the most recent week's change in millions of barrels.
+        """)

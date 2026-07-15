@@ -58,6 +58,29 @@ def render_research_tab(market_data, bot_trends_data, start=None, end=None):
     with tab_traders:
         _render_traders()
 
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **Trump Oil Narrative (inner tab):**
+        - Studies how WTI price moved before and after Trump's oil-related statements.
+        - **Lagging** — Big move happened BEFORE he spoke. He's commenting on something that already happened, not creating news. The market already priced it in.
+        - **Pre-reversal** — Price reversed direction after he spoke. His statement may have changed market expectations.
+        - **Confirmation** — Price kept moving in the same direction after he spoke. His statement aligned with what the market was already doing.
+        - **No signal** — Neither window had a significant move. Statement had little impact.
+        - The scatter plot puts each statement on a grid: x-axis = what happened before, y-axis = what happened after.
+
+        **Bot Mentions (inner tab):**
+        - Tracks Google searches for terms like "oil trading bot", "MetaTrader oil", etc.
+        - This is a proxy — it doesn't count actual bots trading, just people searching for bot tools.
+        - When the bot-mention index spikes, it may mean more algorithmic/automated trading is entering the oil market. More bots = more unpredictable short-term moves.
+        - The correlation with WTI volatility tells you if bot activity and price turbulence are moving together.
+
+        **Losing Oil Traders (inner tab):**
+        - Shows the performance of tracked oil traders from public data (CTA funds, social-copy leaderboards).
+        - When most tracked traders are losing money, it can be a contrarian signal. If everyone who's usually right is struggling, the market may be in an unusual phase.
+        - Use this as context, not as a trade signal by itself.
+        """)
+
 
 def _render_trump(market_data, start, end):
     study = compute_trump_event_study(market_data, start=start, end=end)

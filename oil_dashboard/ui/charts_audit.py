@@ -77,3 +77,31 @@ def render_audit_tab(market_data, eia_data, cot_data):
 
     st.markdown("---")
     st.caption("Audit uses 3-day forward return to evaluate if confluence signals correctly predicted direction.")
+
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **What is the Signal Audit?**
+
+        This tab checks how good the confluence score actually is at predicting price moves. Think of it as a "report card" for the dashboard's signals. It looks at every day where the score was 2 or higher (bullish) or -2 or lower (bearish), then checks what WTI actually did over the next 3 trading days.
+
+        **The Gauge:**
+        - Shows the **hit rate** — what percentage of signals called the direction correctly.
+        - 70%+ = excellent. 50-70% = useful. Below 50% = signals are no better than a coin flip, be cautious.
+
+        **Confirmed tab:**
+        - Best examples where the signal was RIGHT. A bullish score + price went up 3%+ = confirmed.
+        - These are what you want to see — the dashboard doing its job.
+
+        **Missed tab:**
+        - Big price moves that the dashboard did NOT signal. Price moved 3%+ but the confluence score was below 2.
+        - These are usually caused by sudden news — geopolitics, surprise OPEC announcements, etc. The dashboard can't predict those.
+
+        **False Signals tab:**
+        - The dashboard said "bullish" but price went down, or said "bearish" but price went up.
+        - Every system has false signals. The goal is to have more confirmed than false.
+
+        **How to use the audit:**
+        1. Check the hit rate regularly. If it drops below 50% for weeks, the market may be in a news-driven phase where fundamentals matter less.
+        2. When you see a confluence signal today, look back at the audit. Are signals working right now, or is the market ignoring fundamentals?
+        3. Don't trade every signal — only trade when the audit shows the dashboard is "in sync" with the market.
+        """)

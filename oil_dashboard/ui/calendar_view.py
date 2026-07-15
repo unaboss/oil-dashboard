@@ -25,6 +25,30 @@ def render_calendar_tab(market_data, eia_data, cot_data):
     with col_cal:
         _render_monthly_calendar(market_data, eia_data, cot_data)
 
+    st.markdown("---")
+    with st.expander("How to Read This Tab", expanded=False):
+        st.markdown("""
+        **Today's Setup (left panel):**
+        - Shows the live confluence score for today. Green = bullish, Red = bearish, Yellow = neutral.
+        - Each signal shows whether it's bullish (checkmark), bearish (warning), or neutral (grey square).
+        - `[stale]` means the data hasn't been updated recently (COT is only released Fridays, EIA only on Wednesdays). Treat stale signals with less confidence.
+        - WTI Last shows the most recent closing price.
+
+        **Upcoming Catalysts:**
+        - Shows what's coming this week that might move oil prices. EIA report on Wednesday, COT report on Friday.
+
+        **Monthly Calendar (right panel):**
+        - Each day gets a color based on the confluence score for that date.
+        - 🟢 Green = that day had a bullish signal setup.
+        - 🔴 Red = that day had a bearish signal setup.
+        - 🟡 Yellow = signals were mixed or neutral.
+        - Today is highlighted with a gold border.
+
+        **How to use the calendar:**
+        - Look for clusters — several green days in a row suggests a sustained bullish environment. Isolated green days in a red week might be false signals.
+        - Cross-check with the Signal Audit tab to see how reliable the signals have been.
+        """)
+
 
 def _render_today_setup(market_data, eia_data, cot_data):
     st.markdown("### Today's Setup")
