@@ -56,9 +56,13 @@ def render_price_tab(market_data, events_df):
 
     # Event markers
     if events_df is not None and not events_df.empty:
+        chart_start = pd.to_datetime(wti["dates"][0])
+        chart_end = pd.to_datetime(wti["dates"][-1])
         for _, ev in events_df.iterrows():
             try:
-                event_date = pd.to_datetime(ev["date"])
+                event_date = ev["date"]
+                if event_date < chart_start or event_date > chart_end:
+                    continue
                 label = ev.get("label", "Event")
                 fig.add_vline(x=event_date, line_dash="dash", line_color="white",
                               opacity=0.4, row=1, col=1)
