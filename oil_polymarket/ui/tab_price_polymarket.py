@@ -82,10 +82,30 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     marker=dict(size=6, symbol="diamond"),
                 ), secondary_y=False)
 
-            fig0.add_hline(y=50, line_dash="dot", line_color="gray",
-                           annotation_text="50% (neutral)", secondary_y=True)
+            # Anchor: today's WTI open = 50% PM neutral
+            today_open = wti_intraday.get("today_open") if wti_intraday else None
+            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
 
-            fig0.update_yaxes(title_text="WTI Price ($)", secondary_y=False)
+            if anchor_price:
+                fig0.add_hline(y=50, line_dash="dot", line_color="gray",
+                               annotation_text=f"50% — Open ${anchor_price:.2f}",
+                               secondary_y=True)
+            else:
+                fig0.add_hline(y=50, line_dash="dot", line_color="gray",
+                               annotation_text="50% (neutral)",
+                               secondary_y=True)
+
+            # Center WTI axis around anchor
+            if anchor_price and wti_times:
+                all_wti = wti_prices + [anchor_price]
+                max_dev = max(abs(p - anchor_price) for p in all_wti)
+                pad = max(max_dev * 0.3, 0.80)
+                fig0.update_yaxes(
+                    title_text="WTI Price ($)", secondary_y=False,
+                    range=[anchor_price - max_dev - pad, anchor_price + max_dev + pad],
+                )
+            else:
+                fig0.update_yaxes(title_text="WTI Price ($)", secondary_y=False)
             fig0.update_yaxes(
                 title_text="PM Up Probability (%)", secondary_y=True,
                 range=[0, 100], tickformat=".0f",

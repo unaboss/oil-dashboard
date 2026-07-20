@@ -75,13 +75,22 @@ def get_wti_intraday():
 
     ts_list = []
     price_list = []
+    today_open = None
+    today_str = today.strftime("%Y-%m-%d")
+
     for idx, val in zip(close_col.index, close_col.values):
         v = float(val) if not pd.isna(val) else None
         if v is not None:
             ts_list.append(idx.isoformat())
             price_list.append(v)
+            if today_open is None and str(idx.date()) == today_str:
+                today_open = v
 
-    result = {"timestamps": ts_list, "prices": price_list}
+    result = {
+        "timestamps": ts_list,
+        "prices": price_list,
+        "today_open": today_open,
+    }
     set(CACHE_KEY_WTI_INTRADAY, result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result
 
