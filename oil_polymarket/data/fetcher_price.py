@@ -1,11 +1,12 @@
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from data.cache import get, set
 from config import DEFAULT_START, DEFAULT_END, TICKER_WTI, CACHE_TTL_YFINANCE, VOLUME_MA_DAYS
 
 CACHE_KEY_WTI = "polymarket_yf_wti"
+CACHE_KEY_WTI_INTRADAY = "polymarket_yf_wti_intraday"
 
 
 def get_wti(start=DEFAULT_START, end=DEFAULT_END):
@@ -46,6 +47,42 @@ def get_wti(start=DEFAULT_START, end=DEFAULT_END):
 
     last_upd = datetime.now(timezone.utc).isoformat()
     set(CACHE_KEY_WTI, result, CACHE_TTL_YFINANCE, last_updated=last_upd)
+    return result
+
+
+def get_wti_intraday():
+    data, _, _, stale = get(CACHE_KEY_WTI_INTRADAY)
+    if data is not None and not stale:
+        return data
+
+    today = datetime.now(timezone.utc)
+    start = (today - timedelta(days=5)).strftime("%Y-%m-%d")
+    end = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    df = yf.download(TICKER_WTI, start=start, end=end, interval="5m", progress=False, auto_adjust=True)
+
+    if df.empty:
+        return {"timestamps": [], "prices": []}
+
+    # Flatten MultiIndex columns if present
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    if "Close" in df.columns:
+        close_col = df["Close"]
+    else:
+        close_col = df.iloc[:, 3]
+
+    ts_list = []
+    price_list = []
+    for idx, val in zip(close_col.index, close_col.values):
+        v = float(val) if not pd.isna(val) else None
+        if v is not None:
+            ts_list.append(idx.isoformat())
+            price_list.append(v)
+
+    result = {"timestamps": ts_list, "prices": price_list}
+    set(CACHE_KEY_WTI_INTRADAY, result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result
 
 

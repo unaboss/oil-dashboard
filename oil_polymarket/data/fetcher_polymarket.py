@@ -77,68 +77,70 @@ def get_aggregated_sentiment():
     pm = get_polymarket_markets()
     markets = pm.get("markets", [])
 
-    bullish_markets = []
-    bearish_markets = []
-    all_questions = []
+    from analysis.polymarket_classifier import classify_all
 
-    for m in markets:
-        title = m.get("question") or m.get("_event_title") or ""
-        title_lower = title.lower()
+    classified = classify_all(markets)
 
-        outcome_prices = m.get("outcomePrices")
-        if outcome_prices:
-            try:
-                prices = eval(outcome_prices) if isinstance(outcome_prices, str) else outcome_prices
-                price = float(prices[0]) if prices else None
-            except Exception:
-                price = None
-        else:
-            price = m.get("lastTradePrice") or m.get("bestBid")
+    daily_direction = [c for c in classified if c["family"] == "daily_direction"]
+    most_recent = daily_direction[0] if daily_direction else None
 
-        volume = float(m.get("volumeNum") or m.get("_event_volume") or 0)
-
-        if not title_lower:
-            continue
-
-        is_bullish = any(w in title_lower for w in ["above", "higher", "rise", "increase", "bull", "up "])
-        is_bearish = any(w in title_lower for w in ["below", "lower", "fall", "decrease", "bear", "down "])
-
-        all_questions.append({
-            "title": title,
-            "price": price,
-            "volume": volume,
-            "bullish": is_bullish,
-            "bearish": is_bearish,
-        })
-
-        if is_bullish:
-            bullish_markets.append({"price": price, "volume": volume, "title": title})
-        elif is_bearish:
-            bearish_markets.append({"price": price, "volume": volume, "title": title})
-
-    b_prices = [b["price"] for b in bullish_markets if b["price"] is not None]
-    be_prices = [b["price"] for b in bearish_markets if b["price"] is not None]
-
-    b_avg = sum(b_prices) / len(b_prices) if b_prices else None
-    be_avg = sum(be_prices) / len(be_prices) if be_prices else None
-
-    total_bull = len(bullish_markets)
-    total_bear = len(bearish_markets)
-    net = (total_bull - total_bear) / max(total_bull + total_bear, 1)
-
-    total_volume = sum(b["volume"] for b in bullish_markets + bearish_markets)
+    bullish_count = sum(1 for c in classified if c["direction"] == "upside" and c.get("strike"))
+    bearish_count = sum(1 for c in classified if c["direction"] == "downside" and c.get("strike"))
 
     result = {
-        "bullish_avg": b_avg,
-        "bearish_avg": be_avg,
-        "bullish_count": total_bull,
-        "bearish_count": total_bear,
-        "bullish_volume": sum(b["volume"] for b in bullish_markets),
-        "bearish_volume": sum(b["volume"] for b in bearish_markets),
-        "total_volume": total_volume,
-        "net_sentiment": net,
-        "all_questions": all_questions,
+        "daily_direction": {
+            "prob_up": most_recent["price"] if most_recent else None,
+            "date": most_recent["target_date"] if most_recent else None,
+        } if most_recent else None,
+        "bullish_targets": bullish_count,
+        "bearish_targets": bearish_count,
+        "total_oil_markets": len(classified),
+        "all_classified": classified,
     }
 
     cache_set(CACHE_KEY_SENTIMENT, result, CACHE_TTL_POLYMARKET, last_updated=datetime.now(timezone.utc).isoformat())
+    return result
+
+
+def get_up_down_history():
+    data, _, _, stale = cache_get("polymarket_updown_history")
+    if data is not None and not stale:
+        return data
+
+    result = []
+
+    pm = get_polymarket_markets()
+    for m in pm.get("markets", []):
+        q = (m.get("question") or "")
+        if "Up or Down" not in q:
+            continue
+        ids = m.get("clobTokenIds")
+        if not ids:
+            continue
+        try:
+            ids_parsed = eval(ids) if isinstance(ids, str) else ids
+            token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
+        except Exception:
+            continue
+
+        try:
+            r = requests.get(
+                "https://clob.polymarket.com/prices-history",
+                params={"market": token_id, "interval": "max"},
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            r.raise_for_status()
+            history = r.json().get("history", [])
+            for h in history:
+                result.append({
+                    "timestamp": h["t"],
+                    "price": h["p"],
+                })
+        except Exception:
+            continue
+        break
+
+    result.sort(key=lambda x: x["timestamp"])
+    cache_set("polymarket_updown_history", result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result

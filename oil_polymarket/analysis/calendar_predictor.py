@@ -9,7 +9,7 @@ from config import (
 )
 
 
-def compute_calendar_signals(wti_data, polymarket_curve, cot_data, eia_data):
+def compute_calendar_signals(wti_data, polymarket_signal, cot_data, eia_data):
     today = datetime.now(timezone.utc).date()
     start_date = today - timedelta(days=CALENDAR_LOOKBACK_DAYS)
     end_date = today + timedelta(days=CALENDAR_FORWARD_DAYS + 1)
@@ -21,9 +21,9 @@ def compute_calendar_signals(wti_data, polymarket_curve, cot_data, eia_data):
 
     calendar_rows = []
 
-    pm_daily = polymarket_curve.get("daily", {})
-    pm_weekly = polymarket_curve.get("weekly", {})
-    pm_monthly = polymarket_curve.get("monthly", {})
+    pm_daily_dir = polymarket_signal.get("daily_direction") if polymarket_signal else None
+    pm_weekly = polymarket_signal.get("weekly_targets") if polymarket_signal else None
+    pm_monthly = polymarket_signal.get("monthly_targets") if polymarket_signal else None
 
     cot_nl = cot_data.get("net_long")
     cot_extreme = abs(cot_nl) > 100000 if cot_nl else False
@@ -48,16 +48,37 @@ def compute_calendar_signals(wti_data, polymarket_curve, cot_data, eia_data):
         signals = {}
         score = 0
 
-        pm_daily_dir = pm_daily.get("direction", "neutral")
-        pm_daily_score = 1 if pm_daily_dir == "bullish" else (-1 if pm_daily_dir == "bearish" else 0)
+        # Daily direction signal
+        if pm_daily_dir and pm_daily_dir.get("net_sentiment") is not None:
+            pm_daily_score = 1 if pm_daily_dir["net_sentiment"] > 0.05 else (-1 if pm_daily_dir["net_sentiment"] < -0.05 else 0)
+        else:
+            pm_daily_score = 0
         signals["polymarket_daily"] = pm_daily_score
 
-        pm_weekly_dir = pm_weekly.get("direction", "neutral")
-        pm_weekly_score = 1 if pm_weekly_dir == "bullish" else (-1 if pm_weekly_dir == "bearish" else 0)
+        # Weekly targets signal
+        if pm_weekly:
+            weekly_skew = pm_weekly.get("upside_skew")
+            weekly_down = pm_weekly.get("downside_skew")
+            if weekly_skew is not None and weekly_down is not None:
+                ratio = abs(weekly_skew) / max(abs(weekly_down), 0.01)
+                pm_weekly_score = 1 if ratio > 1.2 else (-1 if ratio < 0.8 else 0)
+            else:
+                pm_weekly_score = 0
+        else:
+            pm_weekly_score = 0
         signals["polymarket_weekly"] = pm_weekly_score
 
-        pm_monthly_dir = pm_monthly.get("direction", "neutral")
-        pm_monthly_score = 1 if pm_monthly_dir == "bullish" else (-1 if pm_monthly_dir == "bearish" else 0)
+        # Monthly targets signal
+        if pm_monthly:
+            monthly_skew = pm_monthly.get("upside_skew")
+            monthly_down = pm_monthly.get("downside_skew")
+            if monthly_skew is not None and monthly_down is not None:
+                ratio = abs(monthly_skew) / max(abs(monthly_down), 0.01)
+                pm_monthly_score = 1 if ratio > 1.2 else (-1 if ratio < 0.8 else 0)
+            else:
+                pm_monthly_score = 0
+        else:
+            pm_monthly_score = 0
         signals["polymarket_monthly"] = pm_monthly_score
 
         cot_score = 0

@@ -23,13 +23,10 @@ POLYMARKET_CLOB_URL = "https://clob.polymarket.com"
 
 POLYMARKET_OIL_KEYWORDS = [
     "crude oil",
-    "WTI",
-    "brent",
+    "WTI crude",
     "oil price",
+    "OPEC oil",
     "crude",
-    "oil",
-    "gasoline",
-    "OPEC",
 ]
 
 CACHE_TTL_YFINANCE = 3600

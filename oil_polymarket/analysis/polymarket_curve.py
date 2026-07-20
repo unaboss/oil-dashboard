@@ -1,166 +1,170 @@
-import pandas as pd
-import numpy as np
-
-from config import CONFLUENCE_SIGNALS, SIGNAL_WEIGHTS, BULLISH_THRESHOLD, BEARISH_THRESHOLD
+from analysis.polymarket_classifier import classify_all
+from analysis.implied_distribution import compute_implied_distribution, compute_hit_distribution
 
 
-def classify_polymarket_markets_by_horizon(markets):
-    daily = []
-    weekly = []
-    monthly = []
-    other = []
+def build_polymarket_signal(markets, wti_current_price=None):
+    classified = classify_all(markets)
 
-    for m in markets:
-        title = (m.get("question") or m.get("_event_title") or "").lower()
-        end_date = m.get("endDate") or m.get("_event_end") or ""
-        if "daily" in title or "day" in title or "24h" in title or "24" in title:
-            daily.append(m)
-        elif "weekly" in title or "week" in title or "wk" in title or "w/" in title:
-            weekly.append(m)
-        elif "monthly" in title or "month" in title or "mo" in title:
-            monthly.append(m)
-        elif end_date:
-            try:
-                end_dt = pd.to_datetime(end_date)
-                now = pd.Timestamp.now(tz="UTC")
-                days = (end_dt - now).days
-                if days <= 2:
-                    daily.append(m)
-                elif days <= 10:
-                    weekly.append(m)
-                elif days <= 45:
-                    monthly.append(m)
-                else:
-                    other.append(m)
-            except Exception:
-                other.append(m)
-        else:
-            other.append(m)
+    families = {}
+    for c in classified:
+        fam = c["family"]
+        if fam not in families:
+            families[fam] = []
+        families[fam].append(c)
 
-    return {"daily": daily, "weekly": weekly, "monthly": monthly, "other": other}
+    output = {
+        "total_classified": len(classified),
+        "daily_direction": _build_daily_direction(families.get("daily_direction", [])),
+        "daily_targets": _build_daily_targets(families.get("daily_price_targets", [])),
+        "weekly_targets": _build_price_targets(families.get("weekly_price_targets", []), "weekly"),
+        "monthly_targets": _build_price_targets(families.get("monthly_price_targets", []), "monthly"),
+        "opec_geopolitics": _build_opec(families.get("opec_geopolitics", [])),
+        "geo_sanctions": _build_opec(families.get("geo_sanctions", [])),
+        "all_time_high": families.get("all_time_high", []),
+        "inventory_targets": families.get("inventory_targets", []),
+        "production_targets": families.get("production_targets", []),
+        "other": families.get("unknown", []) + families.get("price_targets", []),
+    }
+
+    if wti_current_price:
+        output["current_wti"] = wti_current_price
+        _add_skew(output, wti_current_price)
+
+    return output
 
 
-def _parse_price(m):
-    price = m.get("lastTradePrice")
-    if price is None:
-        price = m.get("bestBid")
-    if price is None:
-        outcome_prices = m.get("outcomePrices")
-        if outcome_prices:
-            try:
-                prices = eval(outcome_prices) if isinstance(outcome_prices, str) else outcome_prices
-                price = prices[0] if prices else None
-            except Exception:
-                price = None
-    try:
-        return float(price) if price is not None else None
-    except (ValueError, TypeError):
+def _build_daily_direction(markets):
+    if not markets:
         return None
 
+    m = markets[0]
+    prob_up = m["price"] if m["price"] is not None else None
+    prob_down = 1 - prob_up if prob_up is not None else None
+    net = prob_up - prob_down if prob_up is not None and prob_down is not None else None
 
-def compute_horizon_sentiment(markets):
-    if not markets:
-        return {"avg_price": None, "count": 0, "direction": "neutral", "volume": 0}
+    interpretation = "neutral"
+    if net is not None:
+        if net > 0.10:
+            interpretation = "bullish"
+        elif net < -0.10:
+            interpretation = "bearish"
 
-    prices = []
-    volume = 0
-    bullish_count = 0
-    bearish_count = 0
+    return {
+        "date": m["target_date"],
+        "prob_up": prob_up,
+        "prob_down": prob_down,
+        "net_sentiment": round(net, 3) if net is not None else None,
+        "interpretation": interpretation,
+        "volume": m["volume"],
+        "question": m["question"],
+    }
 
+
+def _build_daily_targets(markets):
+    if len(markets) < 3:
+        return None
+
+    strikes_data = []
     for m in markets:
-        price = _parse_price(m)
-        title = (m.get("question") or m.get("_event_title") or "").lower()
-
-        if price is not None:
-            prices.append(price)
-
-        v = float(m.get("volumeNum") or m.get("_event_volume") or 0)
-        volume += v
-
-        is_bullish = any(w in title for w in ["above", "higher", "rise", "increase", "bull", "up "])
-        is_bearish = any(w in title for w in ["below", "lower", "fall", "decrease", "bear", "down "])
-
-        if is_bullish and price is not None and price > 0.50:
-            bullish_count += 1
-        elif is_bearish and price is not None and price > 0.50:
-            bearish_count += 1
-
-    avg_price = np.mean(prices) if prices else None
-
-    if bullish_count > bearish_count:
-        direction = "bullish"
-    elif bearish_count > bullish_count:
-        direction = "bearish"
-    else:
-        direction = "neutral"
-
-    return {
-        "avg_price": avg_price,
-        "count": len(markets),
-        "direction": direction,
-        "volume": volume,
-        "bullish_signals": bullish_count,
-        "bearish_signals": bearish_count,
-    }
-
-
-def build_polymarket_curve(markets, wti_dates=None):
-    classified = classify_polymarket_markets_by_horizon(markets)
-    daily = compute_horizon_sentiment(classified["daily"])
-    weekly = compute_horizon_sentiment(classified["weekly"])
-    monthly = compute_horizon_sentiment(classified["monthly"])
-
-    return {
-        "daily": daily,
-        "weekly": weekly,
-        "monthly": monthly,
-        "raw_daily": classified["daily"],
-        "raw_weekly": classified["weekly"],
-        "raw_monthly": classified["monthly"],
-        "raw_other": classified["other"],
-    }
-
-
-def compute_divergence(market_data, polymarket_sentiment):
-    wti = market_data.get("wti") if isinstance(market_data, dict) else None
-    if wti is None:
-        wti = {}
-    close = wti.get("close", [])
-    dates = wti.get("dates", [])
-
-    if not close or len(close) < 5:
-        return []
-
-    recent_return = (close[-1] / close[-5] - 1) if len(close) >= 5 else 0
-
-    divergence_events = []
-
-    pm_direction = polymarket_sentiment.get("net_sentiment", 0)
-
-    if recent_return > 0.01 and pm_direction <= 0:
-        divergence_events.append({
-            "type": "price_up_pm_flat",
-            "description": "Price rising but Polymarket odds not confirming — potential fake move",
-            "wti_change": round(recent_return * 100, 2),
-            "pm_bias": "bearish" if pm_direction < 0 else "neutral",
-        })
-    elif recent_return < -0.01 and pm_direction >= 0:
-        divergence_events.append({
-            "type": "price_down_pm_flat",
-            "description": "Price falling but Polymarket odds not confirming — potential bounce",
-            "wti_change": round(recent_return * 100, 2),
-            "pm_bias": "bullish" if pm_direction > 0 else "neutral",
-        })
-
-    if polymarket_sentiment.get("bullish_avg") and polymarket_sentiment.get("bearish_avg"):
-        b_avg = polymarket_sentiment["bullish_avg"]
-        be_avg = polymarket_sentiment["bearish_avg"]
-        if b_avg > be_avg and recent_return < 0:
-            divergence_events.append({
-                "type": "pm_bullish_price_down",
-                "description": "Polymarket odds bullish but price declining — contrarian signal",
-                "pm_bull_avg": round(b_avg * 100, 1),
-                "pm_bear_avg": round(be_avg * 100, 1),
+        prob = m["price"]
+        if prob is not None and prob > 0:
+            strikes_data.append({
+                "strike": m["strike"],
+                "prob_above": prob,
+                "volume": m["volume"],
+                "question": m["question"],
             })
 
-    return divergence_events
+    strikes_data.sort(key=lambda x: x["strike"])
+
+    distribution = compute_implied_distribution(strikes_data)
+
+    return {
+        "date": markets[0]["target_date"],
+        "strikes": strikes_data,
+        "distribution": distribution if "error" not in distribution else None,
+    }
+
+
+def _build_price_targets(markets, horizon):
+    if not markets:
+        return None
+
+    upside = [m for m in markets if m["direction"] == "upside"]
+    downside = [m for m in markets if m["direction"] == "downside"]
+
+    result = {"horizon": horizon}
+
+    if upside:
+        upside_data = []
+        for m in upside:
+            prob = m["price"]
+            if prob is not None:
+                upside_data.append({
+                    "strike": m["strike"],
+                    "prob": prob,
+                    "volume": m["volume"],
+                    "question": m["question"],
+                })
+        upside_data.sort(key=lambda x: x["strike"])
+        result["upside"] = {
+            "strikes": upside_data,
+            "distribution": compute_hit_distribution(upside_data, "upside"),
+        }
+
+    if downside:
+        downside_data = []
+        for m in downside:
+            prob = m["price"]
+            if prob is not None:
+                downside_data.append({
+                    "strike": m["strike"],
+                    "prob": prob,
+                    "volume": m["volume"],
+                    "question": m["question"],
+                })
+        downside_data.sort(key=lambda x: x["strike"])
+        result["downside"] = {
+            "strikes": downside_data,
+            "distribution": compute_hit_distribution(downside_data, "downside"),
+        }
+
+    return result if (result.get("upside") or result.get("downside")) else None
+
+
+def _build_opec(markets):
+    if not markets:
+        return []
+    return [{"question": m["question"], "prob_yes": m["price"], "volume": m["volume"]} for m in markets]
+
+
+def _add_skew(output, wti_price):
+    monthly = output.get("monthly_targets")
+    if monthly:
+        upside = monthly.get("upside", {})
+        dist = upside.get("distribution", {}) if upside else {}
+        if "error" not in dist and dist.get("most_likely"):
+            monthly["upside_skew"] = round(dist["most_likely"] - wti_price, 2)
+            monthly["expected_high"] = dist.get("expected_extreme")
+            monthly["most_likely_high"] = dist.get("most_likely")
+
+        downside = monthly.get("downside", {})
+        dist_d = downside.get("distribution", {}) if downside else {}
+        if "error" not in dist_d and dist_d.get("most_likely"):
+            monthly["downside_skew"] = round(dist_d["most_likely"] - wti_price, 2)
+            monthly["most_likely_low"] = dist_d.get("most_likely")
+
+    weekly = output.get("weekly_targets")
+    if weekly:
+        upside = weekly.get("upside", {})
+        dist = upside.get("distribution", {}) if upside else {}
+        if "error" not in dist and dist.get("most_likely"):
+            weekly["upside_skew"] = round(dist["most_likely"] - wti_price, 2)
+            weekly["expected_high"] = dist.get("expected_extreme")
+            weekly["most_likely_high"] = dist.get("most_likely")
+
+        downside = weekly.get("downside", {})
+        dist_d = downside.get("distribution", {}) if downside else {}
+        if "error" not in dist_d and dist_d.get("most_likely"):
+            weekly["downside_skew"] = round(dist_d["most_likely"] - wti_price, 2)
+            weekly["most_likely_low"] = dist_d.get("most_likely")

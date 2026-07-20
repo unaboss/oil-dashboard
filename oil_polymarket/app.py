@@ -11,13 +11,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from data.fetcher_price import get_wti
+from data.fetcher_price import get_wti, get_wti_intraday
 from data.fetcher_cot import get_cot_data
 from data.fetcher_eia import get_all_eia_data
 from data.fetcher_aaa import get_aaa_gas_price
-from data.fetcher_polymarket import get_polymarket_markets, get_aggregated_sentiment
-from analysis.polymarket_curve import build_polymarket_curve, compute_divergence
-from analysis.lag_engine import build_lag_matrix
+from data.fetcher_polymarket import get_polymarket_markets, get_aggregated_sentiment, get_up_down_history
+from analysis.polymarket_curve import build_polymarket_signal
 
 from ui.tab_price_polymarket import render_price_polymarket_tab
 from ui.tab_cot import render_cot_tab
@@ -26,15 +25,22 @@ from ui.tab_sentiment import render_sentiment_tab
 from ui.tab_calendar import render_calendar_tab
 
 CACHE_TTL_PRICE = 3600
+CACHE_TTL_INTRADAY = 300
 CACHE_TTL_EIA = 86400
 CACHE_TTL_COT = 86400
 CACHE_TTL_AAA = 86400
 CACHE_TTL_PM = 3600
+CACHE_TTL_PM_HISTORY = 300
 
 
 @st.cache_data(ttl=CACHE_TTL_PRICE)
 def load_wti(start, end):
     return get_wti(start=str(start), end=str(end))
+
+
+@st.cache_data(ttl=CACHE_TTL_INTRADAY)
+def load_wti_intraday():
+    return get_wti_intraday()
 
 
 @st.cache_data(ttl=CACHE_TTL_EIA)
@@ -59,6 +65,11 @@ def load_polymarket():
     return {"markets": pm_markets, "sentiment": sentiment}
 
 
+@st.cache_data(ttl=CACHE_TTL_PM_HISTORY)
+def load_pm_history():
+    return get_up_down_history()
+
+
 def main():
     st.title("Oil Dashboard — Polymarket & Positioning")
 
@@ -73,6 +84,7 @@ def main():
 
     with st.spinner("Loading WTI price data..."):
         wti_data = load_wti(start_str, end_str)
+        wti_intraday = load_wti_intraday()
 
     with st.spinner("Loading EIA inventories..."):
         eia_data = load_eia(start_str, end_str)
@@ -85,23 +97,29 @@ def main():
 
     with st.spinner("Loading Polymarket data..."):
         pm_raw = load_polymarket()
+        pm_history = load_pm_history()
 
     market_data = {"wti": wti_data}
 
+    current_wti = wti_data["close"][-1] if (
+        wti_data and wti_data.get("close") and len(wti_data["close"]) > 0
+    ) else None
+
     pm_markets_dict = pm_raw.get("markets", {}) if pm_raw else {}
     all_pm_markets = pm_markets_dict.get("markets", [])
-    polymarket_curve = build_polymarket_curve(all_pm_markets)
+    polymarket_signal = build_polymarket_signal(all_pm_markets, wti_current_price=current_wti)
     pm_sentiment = pm_raw.get("sentiment", {}) if pm_raw else {}
 
-    divergence = compute_divergence(market_data, pm_sentiment)
-
-    if divergence:
+    # Sidebar divergence based on daily direction
+    daily_dir = polymarket_signal.get("daily_direction") if polymarket_signal else None
+    if daily_dir and daily_dir.get("net_sentiment") is not None and current_wti is not None:
+        net = daily_dir["net_sentiment"]
         with st.sidebar:
             st.markdown("---")
-            st.subheader("Divergence Alerts")
-            for d in divergence:
-                st.warning(f"**{d.get('description', '')}**")
-                st.caption(f"WTI: {d.get('wti_change', 'N/A')}% | PM: {d.get('pm_bias', 'N/A')}")
+            st.subheader("Direction Signal")
+            color = "green" if net > 0.10 else ("red" if net < -0.10 else "orange")
+            st.markdown(f":{color}[**{daily_dir.get('interpretation', 'neutral').upper()}**] "
+                        f"({daily_dir['prob_up'] * 100:.1f}% Up)")
 
     wti_dates = wti_data.get('dates', []) if wti_data else []
     eia_crude_raw = eia_data.get("crude") if isinstance(eia_data, dict) else None
@@ -115,7 +133,7 @@ def main():
         st.caption(f"WTI: {len(wti_dates)} days ({start_str} → {end_str})")
         st.caption(f"EIA: {len(eia_dates)} weeks")
         st.caption(f"COT: {'Available' if cot_avail else 'Unavailable'}")
-        st.caption(f"Polymarket: {len(all_pm_markets)} markets")
+        st.caption(f"Polymarket: {polymarket_signal.get('total_classified', 0)} oil markets")
         st.caption(f"AAA: {'$' + str(aaa_price) if aaa_price else 'Unavailable'}")
 
     tabs = st.tabs([
@@ -127,7 +145,7 @@ def main():
     ])
 
     with tabs[0]:
-        render_price_polymarket_tab(market_data, polymarket_curve)
+        render_price_polymarket_tab(market_data, polymarket_signal, pm_history, wti_intraday)
 
     with tabs[1]:
         render_cot_tab(market_data, cot_data)
@@ -136,10 +154,10 @@ def main():
         render_inventories_tab(market_data, eia_data, aaa_data)
 
     with tabs[3]:
-        render_sentiment_tab(polymarket_curve)
+        render_sentiment_tab(polymarket_signal, pm_sentiment)
 
     with tabs[4]:
-        render_calendar_tab(market_data, polymarket_curve, cot_data, eia_data)
+        render_calendar_tab(market_data, polymarket_signal, cot_data, eia_data)
 
 
 if __name__ == "__main__":
