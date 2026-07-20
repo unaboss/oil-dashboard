@@ -60,7 +60,50 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     except Exception:
                         continue
 
+            # ── Phase Detection ──
+            phase_data = None
+            current_phase = "neutral"
+            phase_multiplier = 0.0
+            lag_minutes = 0
+
+            if wti_times and pm_times:
+                from analysis.phase_detector import align_series, detect_phases
+                try:
+                    merged = align_series(
+                        [t.isoformat() for t in wti_times], wti_prices,
+                        [t.isoformat() for t in pm_times], pm_prices,
+                    )
+                    phase_data, phase_multiplier, current_phase, lag_minutes = detect_phases(
+                        merged, anchor_price
+                    )
+                except Exception:
+                    pass
+
             fig0 = make_subplots(specs=[[{"secondary_y": True}]])
+
+            # Phase background band
+            if phase_data is not None and "phase" in phase_data.columns:
+                phase_colors = {
+                    "pm_lagging": "rgba(0,200,0,0.15)",
+                    "converging": "rgba(255,255,0,0.10)",
+                    "pm_ahead": "rgba(255,165,0,0.15)",
+                    "divergence": "rgba(255,0,0,0.20)",
+                    "neutral": "rgba(128,128,128,0.05)",
+                }
+                phases = phase_data["phase"].values
+                times = phase_data.index
+                i = 0
+                while i < len(phases):
+                    j = i
+                    while j < len(phases) and phases[j] == phases[i]:
+                        j += 1
+                    color = phase_colors.get(phases[i], "rgba(0,0,0,0)")
+                    if j < len(times):
+                        fig0.add_vrect(
+                            x0=times[i], x1=times[j],
+                            fillcolor=color, layer="below", line_width=0,
+                        )
+                    i = j
 
             fig0.add_trace(go.Scatter(
                 x=pm_times, y=pm_prices, mode="lines",
@@ -119,15 +162,34 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             )
             st.plotly_chart(fig0, use_container_width=True)
 
-        # Lag note
-        if daily_dir and daily_dir.get("prob_up") is not None:
-            prob_up = daily_dir["prob_up"]
-            wti_change = ((current_wti - prev_close) / prev_close * 100) if current_wti and prev_close else 0
-            pm_direction = "bullish" if prob_up > 0.50 else "bearish"
-            wti_direction = "up" if wti_change > 0 else "down"
-            if (pm_direction == "bullish" and wti_direction == "down") or \
-               (pm_direction == "bearish" and wti_direction == "up"):
-                st.info(f"Divergence: PM odds {pm_direction} ({prob_up*100:.0f}% Up) but WTI {wti_direction} ({wti_change:+.2f}%) — watch for PM leading price.")
+            # Phase metrics
+            phase_labels = {
+                "pm_lagging": "PM Lagging — traders catching up, early trend",
+                "converging": "Converging — PM confirming price move",
+                "pm_ahead": "PM Ahead — FOMO zone, possible exhaustion",
+                "divergence": "Divergence — PM opposing price, reversal risk",
+                "neutral": "Neutral — no clear signal",
+            }
+            phase_desc = phase_labels.get(current_phase, "Unknown")
+
+            cols = st.columns(4)
+            with cols[0]:
+                color_map = {"pm_lagging": "green", "converging": "yellow", "pm_ahead": "orange", "divergence": "red", "neutral": "gray"}
+                st.metric("Phase", current_phase.replace("_", " ").title(),
+                          delta=f"Multiplier: {phase_multiplier:+.1f}" if phase_multiplier != 0 else None)
+                st.caption(phase_desc)
+            with cols[1]:
+                st.metric("Est. Lag", f"{lag_minutes:+d} min",
+                          delta="PM behind" if lag_minutes < -5 else ("PM ahead" if lag_minutes > 5 else "Aligned"))
+            with cols[2]:
+                if daily_dir and daily_dir.get("prob_up") is not None:
+                    st.metric("PM Direction", f"{daily_dir['prob_up']*100:.0f}% Up")
+            with cols[3]:
+                if current_wti and anchor_price:
+                    wti_chg = (current_wti - anchor_price) / anchor_price * 100
+                    st.metric("WTI vs Open", f"{wti_chg:+.2f}%",
+                              delta="Up" if wti_chg > 0 else "Down")
+
 
     # ── Section A: Daily Direction Overlay ──
     st.markdown("### Daily Direction Signal")
