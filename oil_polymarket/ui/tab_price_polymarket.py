@@ -42,7 +42,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
 
         def prev_trading_day(d):
             d = d - timedelta(days=1)
-            while not is_trading_day(d) and d >= today_utc - timedelta(days=7):
+            while not is_trading_day(d) and d >= today_utc - timedelta(days=14):
                 d = d - timedelta(days=1)
             return d
 
@@ -52,8 +52,10 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 d = d + timedelta(days=1)
             return d
 
-        can_go_back = is_trading_day(target_date - timedelta(days=1))
-        can_go_forward = st.session_state["day_offset"] > 0
+        prev_candidate = prev_trading_day(target_date)
+        next_candidate = next_trading_day(target_date)
+        can_go_back = is_trading_day(prev_candidate) and prev_candidate >= today_utc - timedelta(days=10)
+        can_go_forward = next_candidate <= today_utc and st.session_state["day_offset"] > 0
 
         pm_times, pm_prices = [], []
         for h in pm_history:
