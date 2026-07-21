@@ -100,11 +100,11 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             show_phase = st.checkbox("Show Phase Bands", value=True, key="phase_toggle")
             if show_phase and phase_data is not None and "phase" in phase_data.columns:
                 phase_colors = {
-                    "pm_lagging": "rgba(0,200,0,0.15)",
-                    "converging": "rgba(255,255,0,0.10)",
-                    "pm_ahead": "rgba(255,165,0,0.15)",
-                    "divergence": "rgba(255,0,0,0.20)",
-                    "neutral": "rgba(128,128,128,0.03)",
+                    "pm_lagging": "rgba(0,200,0,0.30)",
+                    "converging": "rgba(255,255,0,0.25)",
+                    "pm_ahead": "rgba(255,165,0,0.30)",
+                    "divergence": "rgba(255,0,0,0.35)",
+                    "neutral": "rgba(128,128,128,0.08)",
                 }
                 phases = list(phase_data["phase"].values)
                 times = [t.to_pydatetime().replace(tzinfo=None) if hasattr(t, 'to_pydatetime')
