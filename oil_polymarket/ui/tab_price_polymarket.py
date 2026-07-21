@@ -36,6 +36,25 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         today_utc = datetime.now(timezone.utc).date()
         target_date = today_utc - timedelta(days=st.session_state["day_offset"])
 
+        # Skip weekends in navigation
+        def is_trading_day(d):
+            return d.weekday() < 5
+
+        def prev_trading_day(d):
+            d = d - timedelta(days=1)
+            while not is_trading_day(d) and d >= today_utc - timedelta(days=7):
+                d = d - timedelta(days=1)
+            return d
+
+        def next_trading_day(d):
+            d = d + timedelta(days=1)
+            while not is_trading_day(d) and d <= today_utc:
+                d = d + timedelta(days=1)
+            return d
+
+        can_go_back = is_trading_day(target_date - timedelta(days=1))
+        can_go_forward = st.session_state["day_offset"] > 0
+
         pm_times, pm_prices = [], []
         for h in pm_history:
             try:
@@ -159,28 +178,6 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
 
             st.plotly_chart(fig0, use_container_width=True)
 
-            # Navigation
-            c_prev, c_label, c_next = st.columns([1, 3, 1])
-            with c_prev:
-                max_back = min(st.session_state["day_offset"] + 1, 7)
-                if st.button("← Previous Day", use_container_width=True,
-                             disabled=(st.session_state["day_offset"] >= 6)):
-                    st.session_state["day_offset"] += 1
-                    st.rerun()
-            with c_label:
-                if st.session_state["day_offset"] == 0:
-                    lbl = "Today"
-                elif st.session_state["day_offset"] == 1:
-                    lbl = "Yesterday"
-                else:
-                    lbl = target_date.strftime("%A, %b %d")
-                st.caption(f"Showing: **{lbl}**  —  ← Prev / Next →")
-            with c_next:
-                if st.button("Next Day →", use_container_width=True,
-                             disabled=(st.session_state["day_offset"] <= 0)):
-                    st.session_state["day_offset"] -= 1
-                    st.rerun()
-
             # Metrics
             phase_labels = {
                 "pm_lagging": "PM Lagging — traders catching up, early trend",
@@ -207,6 +204,33 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 if cur_p and anchor_price:
                     chg = (cur_p - anchor_price) / anchor_price * 100
                     st.metric("WTI vs Open", f"{chg:+.2f}%", delta="Up" if chg > 0 else "Down")
+
+        # Navigation — always visible, even when no data for target date
+        st.markdown("---")
+        c_prev, c_label, c_reset, c_next = st.columns([1, 2, 1, 1])
+        with c_prev:
+            if st.button("← Prev", use_container_width=True, disabled=not can_go_back,
+                         help="Previous trading day"):
+                prev = prev_trading_day(target_date)
+                st.session_state["day_offset"] = (today_utc - prev).days
+                st.rerun()
+        with c_label:
+            if st.session_state["day_offset"] == 0:
+                lbl = "Today"
+            else:
+                lbl = target_date.strftime("%a, %b %d")
+            st.caption(f"**{lbl}**")
+        with c_reset:
+            if st.button("Today", use_container_width=True,
+                         disabled=(st.session_state["day_offset"] == 0)):
+                st.session_state["day_offset"] = 0
+                st.rerun()
+        with c_next:
+            if st.button("Next →", use_container_width=True, disabled=not can_go_forward,
+                         help="Next trading day"):
+                nxt = next_trading_day(target_date)
+                st.session_state["day_offset"] = max(0, (today_utc - nxt).days)
+                st.rerun()
 
     # ════════════════════════════════════════════════════════════
     # Section A: 30-day daily direction overlay

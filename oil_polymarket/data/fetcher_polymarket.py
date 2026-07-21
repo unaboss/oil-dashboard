@@ -108,6 +108,7 @@ def get_up_down_history():
         return data
 
     result = []
+    seen_dates = set()
 
     pm = get_polymarket_markets()
     for m in pm.get("markets", []):
@@ -137,9 +138,56 @@ def get_up_down_history():
                     "timestamp": h["t"],
                     "price": h["p"],
                 })
+                from datetime import datetime, timezone
+                ts = datetime.fromtimestamp(h["t"], tz=timezone.utc)
+                seen_dates.add(ts.date())
         except Exception:
             continue
         break
+
+    # Also search for recently resolved Up/Down markets for past days
+    try:
+        r2 = requests.get(
+            f"{POLYMARKET_GAMMA_URL}/public-search",
+            params={"q": "WTI Up or Down", "events_status": "closed", "limit_per_type": 10},
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        r2.raise_for_status()
+        closed_events = r2.json().get("events", [])
+        for ev in closed_events:
+            for m in ev.get("markets", []):
+                q = (m.get("question") or "")
+                if "Up or Down" not in q:
+                    continue
+                ids = m.get("clobTokenIds")
+                if not ids:
+                    continue
+                try:
+                    ids_parsed = eval(ids) if isinstance(ids, str) else ids
+                    token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
+                except Exception:
+                    continue
+                try:
+                    r3 = requests.get(
+                        "https://clob.polymarket.com/prices-history",
+                        params={"market": token_id, "interval": "max"},
+                        timeout=15,
+                        headers={"User-Agent": "Mozilla/5.0"},
+                    )
+                    r3.raise_for_status()
+                    history = r3.json().get("history", [])
+                    for h in history:
+                        result.append({
+                            "timestamp": h["t"],
+                            "price": h["p"],
+                        })
+                except Exception:
+                    continue
+                break
+            break
+    except Exception:
+        pass
 
     result.sort(key=lambda x: x["timestamp"])
     cache_set("polymarket_updown_history", result, 300, last_updated=datetime.now(timezone.utc).isoformat())
