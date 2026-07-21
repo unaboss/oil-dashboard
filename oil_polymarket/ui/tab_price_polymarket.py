@@ -88,22 +88,28 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     "converging": "rgba(255,255,0,0.10)",
                     "pm_ahead": "rgba(255,165,0,0.15)",
                     "divergence": "rgba(255,0,0,0.20)",
-                    "neutral": "rgba(128,128,128,0.05)",
+                    "neutral": "rgba(128,128,128,0.03)",
                 }
-                phases = phase_data["phase"].values
-                times = phase_data.index
-                i = 0
-                while i < len(phases):
-                    j = i
-                    while j < len(phases) and phases[j] == phases[i]:
-                        j += 1
-                    color = phase_colors.get(phases[i], "rgba(0,0,0,0)")
-                    if j < len(times):
-                        fig0.add_vrect(
-                            x0=times[i], x1=times[j],
-                            fillcolor=color, layer="below", line_width=0,
-                        )
-                    i = j
+                phases = list(phase_data["phase"].values)
+                times = list(phase_data.index)
+                segs = []
+                current = phases[0]
+                start = 0
+                for k in range(1, len(phases)):
+                    if phases[k] != current:
+                        segs.append((current, start, k))
+                        current = phases[k]
+                        start = k
+                segs.append((current, start, len(phases)))
+
+                for phase, s, e in segs:
+                    color = phase_colors.get(phase, "rgba(0,0,0,0)")
+                    x_e = times[min(e, len(times) - 1)]
+                    fig0.add_vrect(
+                        x0=times[s], x1=x_e,
+                        fillcolor=color, layer="below", line_width=0,
+                        opacity=0.5,
+                    )
 
             fig0.add_trace(go.Scatter(
                 x=pm_times, y=pm_prices, mode="lines",
