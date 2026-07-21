@@ -119,6 +119,8 @@ def main():
                 p_prices.append(h["price"] * 100)
         if w_times and p_times:
             anchor = wti_intraday.get("today_open")
+            if wti_data and len(wti_data.get("close", [])) >= 2:
+                anchor = wti_data["close"][-2]  # prior trading day close
             merged = align_series(w_times, w_prices, p_times, p_prices)
             if merged is not None and not merged.empty:
                 _, phase_mult, _, _ = detect_phases(merged, anchor)

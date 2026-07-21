@@ -57,40 +57,50 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         can_go_back = is_trading_day(prev_candidate) and prev_candidate >= today_utc - timedelta(days=10)
         can_go_forward = next_candidate <= today_utc and st.session_state["day_offset"] > 0
 
+        # ── WTI and PM data for the trading session ──
+        # Session: prev day 22:00 UTC → target day 21:00 UTC (NYMEX hours)
+        # Polymarket resolves at 21:00 UTC based on daily close vs prior close
+
         pm_times, pm_prices = [], []
-        prev_p = None
         for h in pm_history:
             try:
                 ts = datetime.fromtimestamp(h["timestamp"], tz=timezone.utc)
                 p = h["price"]
-                if ts.date() == target_date:
+                # Exclude post-resolution spikes (after 21:00 UTC on target day)
+                cutoff = datetime(target_date.year, target_date.month, target_date.day, 21, 0, tzinfo=timezone.utc)
+                if ts >= cutoff:
+                    continue
+                if ts.date() == target_date or (ts.date() == target_date - timedelta(days=1) and ts.hour >= 22):
                     pm_times.append(ts)
                     pm_prices.append(p * 100)
             except Exception:
                 continue
 
         wti_times, wti_prices = [], []
+        session_start = datetime(target_date.year, target_date.month, target_date.day, 0, 0, tzinfo=timezone.utc)
         if wti_intraday:
             for ts_str, price in zip(wti_intraday.get("timestamps", []),
                                       wti_intraday.get("prices", [])):
                 try:
                     dt = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
-                    if dt.date() == target_date:
+                    session_end = datetime(target_date.year, target_date.month, target_date.day, 22, 0, tzinfo=timezone.utc)
+                    if dt >= session_start and dt < session_end:
                         wti_times.append(dt)
                         wti_prices.append(price)
                 except Exception:
                     continue
 
-        target_open = None
-        if wti_times:
-            target_open = wti_prices[0]
-        if target_open is None and len(close) >= 2:
-            pd_dates = [pd.to_datetime(d).date() for d in dates]
+        # Anchor = prior trading day's close (what PM bet compares against)
+        anchor_price = None
+        pd_dates = [pd.to_datetime(d).date() for d in dates]
+        prior_date = prev_trading_day(target_date)
+        if prior_date != target_date:
             for i, d in enumerate(pd_dates):
-                if d == target_date - timedelta(days=1) and i < len(close):
-                    target_open = close[i]
+                if d == prior_date and i < len(close):
+                    anchor_price = close[i]
                     break
-        anchor_price = target_open
+        if anchor_price is None and wti_times:
+            anchor_price = wti_prices[0]  # fallback: first bar
 
         show_phase = False
         phase_data = None
@@ -122,9 +132,9 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 yaxis=dict(title="WTI Price ($)"),
                 yaxis2=dict(title="PM Up Probability (%)", overlaying="y", side="right",
                             range=[0, 100], tickformat=".0f"),
-                xaxis=dict(title="Time (UTC)", range=[
-                    target_date.isoformat() + "T00:00:00",
-                    target_date.isoformat() + "T23:59:59",
+                xaxis=dict(title=f"Time (UTC) — {target_date.strftime('%a %b %d')} Session", range=[
+                    (target_date - timedelta(days=0)).isoformat() + "T00:00:00",
+                    (target_date).isoformat() + "T22:00:00",
                 ]),
                 height=450, template="plotly_dark",
                 hovermode="x unified",
@@ -171,12 +181,24 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 name="WTI Price", line=dict(color="white", width=2),
             ))
 
+            # Reference lines
             if anchor_price:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
-                               annotation_text=f"50% — Open ${anchor_price:.2f}", yref="y2")
+                               annotation_text=f"50% — Prior Close ${anchor_price:.2f}", yref="y2")
             else:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
                                annotation_text="50% (neutral)", yref="y2")
+
+            # Key trading hours markers
+            ref_times = {
+                "Pit Open": (13, 0, "gray"),
+                "Settle": (18, 30, "orange"),
+                "Close": (21, 0, "red"),
+            }
+            for label, (h, m, color) in ref_times.items():
+                t = datetime(target_date.year, target_date.month, target_date.day, h, m, tzinfo=timezone.utc)
+                fig0.add_vline(x=t, line_dash="dash", line_color=color, line_width=1,
+                               annotation_text=f"{label} {h:02d}:{m:02d}", annotation_position="top")
 
             if anchor_price:
                 all_w = wti_prices + [anchor_price]
@@ -213,7 +235,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 cur_p = wti_prices[-1] if wti_prices else None
                 if cur_p and anchor_price:
                     chg = (cur_p - anchor_price) / anchor_price * 100
-                    st.metric("WTI vs Open", f"{chg:+.2f}%", delta="Up" if chg > 0 else "Down")
+                    st.metric("WTI vs Prior Close", f"{chg:+.2f}%", delta="Up" if chg > 0 else "Down")
 
         # Navigation — always visible, even when no data for target date
         st.markdown("---")
@@ -228,7 +250,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             if st.session_state["day_offset"] == 0:
                 lbl = "Today"
             else:
-                lbl = target_date.strftime("%a, %b %d")
+                lbl = target_date.strftime("%a, %b %d Session")
             st.caption(f"**{lbl}**")
         with c_reset:
             if st.button("Today", use_container_width=True,
@@ -245,11 +267,11 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         # Live data validation
         with st.expander("Chart Data Validation"):
             st.write(f"**Target date:** {target_date.isoformat()} (offset={st.session_state['day_offset']})")
+            st.write(f"**Prior close (anchor):** {anchor_price}")
             st.write(f"**WTI points:** {len(wti_times)} | range: {wti_times[0] if wti_times else 'none'} - {wti_times[-1] if wti_times else 'none'}")
-            st.write(f"**WTI prices:** {wti_prices[0] if wti_prices else '?'} - {wti_prices[-1] if wti_prices else '?'}")
+            st.write(f"**WTI prices:** {min(wti_prices) if wti_prices else '?'} - {max(wti_prices) if wti_prices else '?'}")
             st.write(f"**PM points:** {len(pm_times)} | range: {pm_times[0] if pm_times else 'none'} - {pm_times[-1] if pm_times else 'none'}")
-            st.write(f"**PM prices:** {pm_prices[0] if pm_prices else '?'} - {pm_prices[-1] if pm_prices else '?'}")
-            st.write(f"**Anchor (open):** {anchor_price}")
+            st.write(f"**PM prices:** {min(pm_prices) if pm_prices else '?'} - {max(pm_prices) if pm_prices else '?'}")
             st.write(f"**Phase data:** {'None' if phase_data is None else f'{len(phase_data)} rows'}")
             if phase_data is not None and 'phase' in phase_data.columns:
                 st.write(f"**Unique phases:** {list(phase_data['phase'].unique())}")
