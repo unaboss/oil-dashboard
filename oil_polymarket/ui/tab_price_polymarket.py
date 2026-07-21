@@ -99,8 +99,9 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             today_open = wti_intraday.get("today_open") if wti_intraday else None
             anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
 
-            # Phase background band
-            if phase_data is not None and "phase" in phase_data.columns:
+            # Phase toggle
+            show_phase = st.checkbox("Show Phase Bands", value=True, key="phase_toggle")
+            if show_phase and phase_data is not None and "phase" in phase_data.columns:
                 phase_colors = {
                     "pm_lagging": "rgba(0,200,0,0.15)",
                     "converging": "rgba(255,255,0,0.10)",
@@ -109,7 +110,8 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     "neutral": "rgba(128,128,128,0.03)",
                 }
                 phases = list(phase_data["phase"].values)
-                times = list(phase_data.index)
+                times = [t.to_pydatetime().replace(tzinfo=None) if hasattr(t, 'to_pydatetime')
+                         else t for t in phase_data.index]
                 segs = []
                 current = phases[0]
                 start = 0
@@ -122,9 +124,13 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
 
                 for phase, s, e in segs:
                     color = phase_colors.get(phase, "rgba(0,0,0,0)")
-                    x_e = times[min(e, len(times) - 1)]
+                    x0 = times[s]
+                    x1 = times[min(e, len(times) - 1)]
+                    if x0 == x1:
+                        from datetime import timedelta
+                        x1 = x0 + timedelta(minutes=5)
                     fig0.add_vrect(
-                        x0=times[s], x1=x_e,
+                        x0=x0, x1=x1,
                         fillcolor=color, layer="below", line_width=0,
                         opacity=0.5,
                     )
