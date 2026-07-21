@@ -28,7 +28,8 @@ def _is_market_hours():
     return 14 <= h < 21  # roughly NYMEX hours UTC
 
 def _fetch_ticker(ticker, cache_key, start, end):
-    data, _, _, stale = get(cache_key)
+    cache_key_with_range = f"{cache_key}_{start}_{end}"
+    data, _, _, stale = get(cache_key_with_range)
     if data is not None and not stale:
         return data
 
@@ -59,7 +60,7 @@ def _fetch_ticker(ticker, cache_key, start, end):
         result["volume"] = [float(x) if not pd.isna(float(x)) else None for x in vol_vals]
 
     last_upd = datetime.now(timezone.utc).isoformat()
-    set(cache_key, result, ttl, last_updated=last_upd)
+    set(cache_key_with_range, result, ttl, last_updated=last_upd)
     return result
 
 
@@ -113,7 +114,7 @@ def get_crack_spread(start=DEFAULT_START, end=DEFAULT_END):
 def get_curve_spread(start=DEFAULT_START, end=DEFAULT_END):
     """Brent 1mo vs 6mo spread as CFD proxy.
     Falls back to Brent-WTI spread if deferred contract unavailable."""
-    cache_key = "yf_curve"
+    cache_key = f"yf_curve_{start}_{end}"
 
     data, _, _, stale = get(cache_key)
     if data is not None and not stale:

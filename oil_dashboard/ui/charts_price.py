@@ -15,7 +15,7 @@ def render_price_tab(market_data, events_df):
     crack = market_data.get("crack")
     vol = market_data.get("volume_anomaly")
 
-    if not wti or not wti.get("dates"):
+    if not wti or not wti.get("dates") or not wti.get("close"):
         st.warning("No WTI data available. Check your date range or internet connection.")
         return
 
@@ -33,21 +33,24 @@ def render_price_tab(market_data, events_df):
 
     # WTI candlestick
     if len(close) > 1:
-        sma20 = compute_sma(close, 20)
-        sma50 = compute_sma(close, 50)
+        if len(close) >= 20:
+            sma20 = compute_sma(close, 20)
+        else:
+            sma20 = []
+        sma50 = compute_sma(close, 50) if len(close) >= 50 else []
 
         fig.add_trace(
             go.Scatter(x=dates, y=close, mode="lines", name="WTI Close",
                        line=dict(color="#FF9800", width=2)),
             row=1, col=1,
         )
-        if len([x for x in sma20 if x is not None and not pd.isna(x)]) > 0:
+        if sma20:
             fig.add_trace(
                 go.Scatter(x=dates, y=sma20, mode="lines", name="20d MA",
                            line=dict(color="#2196F3", width=1, dash="dot")),
                 row=1, col=1,
             )
-        if len(close) >= 50 and len([x for x in sma50 if x is not None and not pd.isna(x)]) > 0:
+        if sma50:
             fig.add_trace(
                 go.Scatter(x=dates, y=sma50, mode="lines", name="50d MA",
                            line=dict(color="#F44336", width=1, dash="dot")),
@@ -84,7 +87,7 @@ def render_price_tab(market_data, events_df):
                        line=dict(color="#4CAF50", width=1.5)),
             row=2, col=1,
         )
-        if c_ma:
+        if c_ma and any(v is not None and not pd.isna(v) for v in c_ma):
             fig.add_trace(
                 go.Scatter(x=c_dates, y=c_ma, mode="lines", name="Crack 5d MA",
                            line=dict(color="#8BC34A", width=1, dash="dot")),
@@ -108,7 +111,7 @@ def render_price_tab(market_data, events_df):
                    opacity=0.6),
             row=3, col=1,
         )
-        if v_ma:
+        if v_ma and any(v is not None and not pd.isna(v) for v in v_ma):
             fig.add_trace(
                 go.Scatter(x=v_dates, y=v_ma, mode="lines", name="20d Vol MA",
                            line=dict(color="#9C27B0", width=1)),
