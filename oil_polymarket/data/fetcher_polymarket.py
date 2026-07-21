@@ -140,12 +140,7 @@ def get_up_down_history():
             continue
 
     result.sort(key=lambda x: x["timestamp"])
-    # Deduplicate at 30-second granularity (API returns interleaved data for both tokens)
-    deduped = {}
-    for entry in result:
-        bucket = entry["timestamp"] // 30
-        if bucket not in deduped or entry["price"] > deduped[bucket]["price"]:
-            deduped[bucket] = entry
-    result = sorted(deduped.values(), key=lambda x: x["timestamp"])
+    # Skip static initialization values (exactly 0.50, API default for inactive tokens)
+    result = [e for e in result if e["price"] != 0.50]
     cache_set("polymarket_updown_history", result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result
