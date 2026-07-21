@@ -39,7 +39,7 @@ from data.fetcher_bots import get_bot_mentions
 
 
 @st.cache_data(ttl=3600)
-def load_market_data(start, end):
+def load_market_data(start, end, _version="2"):  # bump _version to invalidate stale cache
     return get_all_market_data(start=str(start), end=str(end))
 
 
