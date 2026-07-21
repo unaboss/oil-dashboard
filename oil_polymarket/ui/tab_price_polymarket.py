@@ -92,6 +92,8 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     break
         anchor_price = target_open
 
+        show_phase = False
+
         if not wti_times:
             st.info(f"No WTI trading data for {target_date.isoformat()}.")
         elif not pm_times:
@@ -238,6 +240,19 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 nxt = next_trading_day(target_date)
                 st.session_state["day_offset"] = max(0, (today_utc - nxt).days)
                 st.rerun()
+
+        # Live data validation
+        with st.expander("Chart Data Validation"):
+            st.write(f"**Target date:** {target_date.isoformat()} (offset={st.session_state['day_offset']})")
+            st.write(f"**WTI points:** {len(wti_times)} | range: {wti_times[0] if wti_times else 'none'} - {wti_times[-1] if wti_times else 'none'}")
+            st.write(f"**WTI prices:** {wti_prices[0] if wti_prices else '?'} - {wti_prices[-1] if wti_prices else '?'}")
+            st.write(f"**PM points:** {len(pm_times)} | range: {pm_times[0] if pm_times else 'none'} - {pm_times[-1] if pm_times else 'none'}")
+            st.write(f"**PM prices:** {pm_prices[0] if pm_prices else '?'} - {pm_prices[-1] if pm_prices else '?'}")
+            st.write(f"**Anchor (open):** {anchor_price}")
+            st.write(f"**Phase data:** {'None' if phase_data is None else f'{len(phase_data)} rows'}")
+            if phase_data is not None and 'phase' in phase_data.columns:
+                st.write(f"**Unique phases:** {list(phase_data['phase'].unique())}")
+            st.write(f"**Show phase:** {show_phase}")
 
     # ════════════════════════════════════════════════════════════
     # Section A: 30-day daily direction overlay
