@@ -93,6 +93,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         anchor_price = target_open
 
         show_phase = False
+        phase_data = None
 
         if not wti_times:
             st.info(f"No WTI trading data for {target_date.isoformat()}.")
