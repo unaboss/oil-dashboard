@@ -20,84 +20,91 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         return
 
     current_wti = close[-1] if close else None
-    prev_close = close[-2] if len(close) >= 2 else None
     daily_dir = polymarket_signal.get("daily_direction") if polymarket_signal else None
 
-    # ── Section A0: WTI Price vs Polymarket Up% Over Time ──
+    # ════════════════════════════════════════════════════════════
+    # Section A0: Intraday WTI vs PM with day navigation
+    # ════════════════════════════════════════════════════════════
     if pm_history:
         from datetime import datetime, timezone, timedelta
 
         st.markdown("### WTI Price vs Polymarket Up% Probability")
 
-        today_utc = datetime.now(timezone.utc).date()
+        if "day_offset" not in st.session_state:
+            st.session_state["day_offset"] = 0
 
-        pm_times = []
-        pm_prices = []
+        today_utc = datetime.now(timezone.utc).date()
+        target_date = today_utc - timedelta(days=st.session_state["day_offset"])
+
+        pm_times, pm_prices = [], []
         for h in pm_history:
             try:
                 ts = datetime.fromtimestamp(h["timestamp"], tz=timezone.utc)
-                if ts.date() == today_utc:
+                if ts.date() == target_date:
                     pm_times.append(ts)
                     pm_prices.append(h["price"] * 100)
             except Exception:
                 continue
 
-        if not pm_times:
-            st.info("No intraday PM data available yet for today.")
-        else:
-            # WTI intraday for today
-            wti_times = []
-            wti_prices = []
-            if wti_intraday:
-                for ts_str, price in zip(wti_intraday.get("timestamps", []),
-                                          wti_intraday.get("prices", [])):
-                    try:
-                        dt = datetime.fromisoformat(ts_str)
-                        if dt.date() == today_utc:
-                            wti_times.append(dt)
-                            wti_prices.append(price)
-                    except Exception:
-                        continue
+        wti_times, wti_prices = [], []
+        if wti_intraday:
+            for ts_str, price in zip(wti_intraday.get("timestamps", []),
+                                      wti_intraday.get("prices", [])):
+                try:
+                    dt = datetime.fromisoformat(ts_str)
+                    if dt.date() == target_date:
+                        wti_times.append(dt)
+                        wti_prices.append(price)
+                except Exception:
+                    continue
 
-            # ── Phase Detection ──
+        target_open = None
+        if wti_times:
+            target_open = wti_prices[0]
+        if target_open is None and len(close) >= 2:
+            pd_dates = [pd.to_datetime(d).date() for d in dates]
+            for i, d in enumerate(pd_dates):
+                if d == target_date - timedelta(days=1) and i < len(close):
+                    target_open = close[i]
+                    break
+        anchor_price = target_open
+
+        if not wti_times:
+            st.info(f"No WTI trading data for {target_date.isoformat()}.")
+        elif not pm_times:
+            st.info(f"No Polymarket Up/Down data for {target_date.isoformat()}.")
+        else:
+            # Phase detection
             phase_data = None
             current_phase = "neutral"
             phase_multiplier = 0.0
             lag_minutes = 0
 
-            today_open = wti_intraday.get("today_open") if wti_intraday else None
-            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
-
-            if wti_times and pm_times:
-                from analysis.phase_detector import align_series, detect_phases
-                merged = align_series(
-                    [t.isoformat() for t in wti_times], wti_prices,
-                    [t.isoformat() for t in pm_times], pm_prices,
+            from analysis.phase_detector import align_series, detect_phases
+            merged = align_series(
+                [t.isoformat() for t in wti_times], wti_prices,
+                [t.isoformat() for t in pm_times], pm_prices,
+            )
+            if merged is not None and not merged.empty:
+                phase_data, phase_multiplier, current_phase, lag_minutes = detect_phases(
+                    merged, anchor_price
                 )
-                if merged is not None and not merged.empty:
-                    phase_data, phase_multiplier, current_phase, lag_minutes = detect_phases(
-                        merged, anchor_price
-                    )
 
+            # Chart
             fig0 = go.Figure()
-
             fig0.update_layout(
                 yaxis=dict(title="WTI Price ($)"),
-                yaxis2=dict(
-                    title="PM Up Probability (%)",
-                    overlaying="y",
-                    side="right",
-                    range=[0, 100],
-                    tickformat=".0f",
-                ),
+                yaxis2=dict(title="PM Up Probability (%)", overlaying="y", side="right",
+                            range=[0, 100], tickformat=".0f"),
                 xaxis=dict(title="Time (UTC)"),
                 height=450, template="plotly_dark",
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.15),
             )
 
-            # Phase toggle
-            show_phase = st.checkbox("Show Phase Bands", value=True, key="phase_toggle")
+            show_phase = st.checkbox("Show Phase Bands", value=True,
+                                     key=f"phase_toggle_{st.session_state['day_offset']}")
+
             if show_phase and phase_data is not None and "phase" in phase_data.columns:
                 phase_colors = {
                     "pm_lagging": "rgba(0,200,0,0.30)",
@@ -107,71 +114,74 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                     "neutral": "rgba(128,128,128,0.08)",
                 }
                 phases = list(phase_data["phase"].values)
-                times = [t.to_pydatetime().replace(tzinfo=None) if hasattr(t, 'to_pydatetime')
-                         else t for t in phase_data.index]
+                t_idx = [t.to_pydatetime().replace(tzinfo=None) if hasattr(t, 'to_pydatetime')
+                          else t for t in phase_data.index]
                 segs = []
-                current = phases[0]
-                start = 0
+                cur = phases[0]; start = 0
                 for k in range(1, len(phases)):
-                    if phases[k] != current:
-                        segs.append((current, start, k))
-                        current = phases[k]
-                        start = k
-                segs.append((current, start, len(phases)))
+                    if phases[k] != cur:
+                        segs.append((cur, start, k))
+                        cur = phases[k]; start = k
+                segs.append((cur, start, len(phases)))
 
-                for phase, s, e in segs:
-                    color = phase_colors.get(phase, "rgba(0,0,0,0)")
-                    x0 = times[s]
-                    x1 = times[min(e, len(times) - 1)]
+                for ph, s, e in segs:
+                    color = phase_colors.get(ph, "rgba(0,0,0,0)")
+                    x0 = t_idx[s]
+                    x1 = t_idx[min(e, len(t_idx) - 1)]
                     if x0 == x1:
-                        from datetime import timedelta
                         x1 = x0 + timedelta(minutes=5)
-                    fig0.add_vrect(
-                        x0=x0, x1=x1,
-                        fillcolor=color, layer="below", line_width=0,
-                        opacity=0.5,
-                    )
+                    fig0.add_vrect(x0=x0, x1=x1, fillcolor=color, layer="below",
+                                   line_width=0, opacity=0.5)
 
             fig0.add_trace(go.Scatter(
                 x=pm_times, y=pm_prices, mode="lines",
-                name="PM Up% Odds", line=dict(color="red", width=2),
-                yaxis="y2",
+                name="PM Up% Odds", line=dict(color="red", width=2), yaxis="y2",
             ))
-
-            if wti_times:
-                fig0.add_trace(go.Scatter(
-                    x=wti_times, y=wti_prices, mode="lines",
-                    name="WTI Price", line=dict(color="white", width=2),
-                ))
-            else:
-                wti_x_today = [pd.to_datetime(dates[-2]), pd.to_datetime(dates[-1])]
-                wti_y_today = [close[-2], close[-1]] if len(close) >= 2 else [close[-1], close[-1]]
-                fig0.add_trace(go.Scatter(
-                    x=wti_x_today, y=wti_y_today, mode="lines+markers",
-                    name="WTI Price (daily)", line=dict(color="white", width=2, dash="dot"),
-                    marker=dict(size=6, symbol="diamond"),
-                ))
+            fig0.add_trace(go.Scatter(
+                x=wti_times, y=wti_prices, mode="lines",
+                name="WTI Price", line=dict(color="white", width=2),
+            ))
 
             if anchor_price:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
-                               annotation_text=f"50% — Open ${anchor_price:.2f}",
-                               yref="y2")
+                               annotation_text=f"50% — Open ${anchor_price:.2f}", yref="y2")
             else:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
-                               annotation_text="50% (neutral)",
-                               yref="y2")
+                               annotation_text="50% (neutral)", yref="y2")
 
-            # Center WTI axis around anchor
-            if anchor_price and wti_times:
-                all_wti = wti_prices + [anchor_price]
-                max_dev = max(abs(p - anchor_price) for p in all_wti)
+            if anchor_price:
+                all_w = wti_prices + [anchor_price]
+                max_dev = max(abs(p - anchor_price) for p in all_w)
                 pad = max(max_dev * 0.3, 0.80)
                 fig0.update_layout(
                     yaxis=dict(range=[anchor_price - max_dev - pad, anchor_price + max_dev + pad])
                 )
+
             st.plotly_chart(fig0, use_container_width=True)
 
-            # Phase metrics
+            # Navigation
+            c_prev, c_label, c_next = st.columns([1, 3, 1])
+            with c_prev:
+                max_back = min(st.session_state["day_offset"] + 1, 7)
+                if st.button("← Previous Day", use_container_width=True,
+                             disabled=(st.session_state["day_offset"] >= 6)):
+                    st.session_state["day_offset"] += 1
+                    st.rerun()
+            with c_label:
+                if st.session_state["day_offset"] == 0:
+                    lbl = "Today"
+                elif st.session_state["day_offset"] == 1:
+                    lbl = "Yesterday"
+                else:
+                    lbl = target_date.strftime("%A, %b %d")
+                st.caption(f"Showing: **{lbl}**  —  ← Prev / Next →")
+            with c_next:
+                if st.button("Next Day →", use_container_width=True,
+                             disabled=(st.session_state["day_offset"] <= 0)):
+                    st.session_state["day_offset"] -= 1
+                    st.rerun()
+
+            # Metrics
             phase_labels = {
                 "pm_lagging": "PM Lagging — traders catching up, early trend",
                 "converging": "Converging — PM confirming price move",
@@ -183,7 +193,6 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
 
             cols = st.columns(4)
             with cols[0]:
-                color_map = {"pm_lagging": "green", "converging": "yellow", "pm_ahead": "orange", "divergence": "red", "neutral": "gray"}
                 st.metric("Phase", current_phase.replace("_", " ").title(),
                           delta=f"Multiplier: {phase_multiplier:+.1f}" if phase_multiplier != 0 else None)
                 st.caption(phase_desc)
@@ -194,19 +203,18 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 if daily_dir and daily_dir.get("prob_up") is not None:
                     st.metric("PM Direction", f"{daily_dir['prob_up']*100:.0f}% Up")
             with cols[3]:
-                if current_wti and anchor_price:
-                    wti_chg = (current_wti - anchor_price) / anchor_price * 100
-                    st.metric("WTI vs Open", f"{wti_chg:+.2f}%",
-                              delta="Up" if wti_chg > 0 else "Down")
+                cur_p = wti_prices[-1] if wti_prices else None
+                if cur_p and anchor_price:
+                    chg = (cur_p - anchor_price) / anchor_price * 100
+                    st.metric("WTI vs Open", f"{chg:+.2f}%", delta="Up" if chg > 0 else "Down")
 
-
-    # ── Section A: Daily Direction Overlay ──
+    # ════════════════════════════════════════════════════════════
+    # Section A: 30-day daily direction overlay
+    # ════════════════════════════════════════════════════════════
     st.markdown("### Daily Direction Signal")
 
     pm_dates = pd.to_datetime(dates[-30:])
     pm_close = close[-30:]
-
-    daily_dir = polymarket_signal.get("daily_direction") if polymarket_signal else None
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -218,7 +226,6 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         prob_up = daily_dir.get("prob_up")
         if prob_up is not None:
             color = "green" if prob_up > 0.55 else ("red" if prob_up < 0.45 else "orange")
-            date_label = daily_dir.get("date", "today")
             fig.add_trace(go.Scatter(
                 x=[pm_dates[-1]], y=[pm_close[-1]],
                 mode="markers+text",
@@ -245,7 +252,9 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             st.metric("Net Signal", f"{daily_dir.get('net_sentiment', 0):+.3f}" if daily_dir.get('net_sentiment') is not None else "N/A",
                       delta=daily_dir.get("interpretation", "").upper())
 
-    # ── Section B: Daily Implied Distribution ──
+    # ════════════════════════════════════════════════════════════
+    # Section B: Daily implied distribution
+    # ════════════════════════════════════════════════════════════
     daily_targets = polymarket_signal.get("daily_targets") if polymarket_signal else None
     if daily_targets and daily_targets.get("distribution"):
         st.markdown("---")
@@ -278,7 +287,9 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             with cols[3]: st.metric("IQR", f"${dist['iqr']}")
             with cols[4]: st.metric("80% CI", f"${dist['p10']}–${dist['p90']}")
 
-    # ── Section C: Weekly/Monthly Probability Curves ──
+    # ════════════════════════════════════════════════════════════
+    # Section C: Weekly/Monthly probability curves
+    # ════════════════════════════════════════════════════════════
     horizon = st.selectbox("Horizon", ["Monthly", "Weekly"], key="pm_horizon_select")
     key = "monthly_targets" if horizon == "Monthly" else "weekly_targets"
     targets = polymarket_signal.get(key) if polymarket_signal else None
@@ -297,8 +308,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             u_probs = [s["prob"] * 100 for s in upside["strikes"]]
             fig3.add_trace(go.Scatter(
                 x=u_strikes, y=u_probs, mode="markers+lines",
-                name=f"P(hit HIGH) %", line=dict(color="lime"),
-                marker=dict(size=8),
+                name="P(hit HIGH) %", line=dict(color="lime"), marker=dict(size=8),
             ))
 
         if downside.get("strikes"):
@@ -306,8 +316,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             d_probs = [s["prob"] * 100 for s in downside["strikes"]]
             fig3.add_trace(go.Scatter(
                 x=d_strikes, y=d_probs, mode="markers+lines",
-                name=f"P(hit LOW) %", line=dict(color="red"),
-                marker=dict(size=8),
+                name="P(hit LOW) %", line=dict(color="red"), marker=dict(size=8),
             ))
 
         if current_wti:
@@ -321,7 +330,6 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         )
         st.plotly_chart(fig3, use_container_width=True)
 
-        # Skew metrics
         if targets.get("upside_skew") is not None or targets.get("downside_skew") is not None:
             col_a, col_b, col_c = st.columns(3)
             with col_a:
@@ -336,7 +344,9 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 if sh and sl:
                     st.metric("Expected Range", f"${sl}–${sh}")
 
-    # ── Section D: Strike Detail Table ──
+    # ════════════════════════════════════════════════════════════
+    # Section D: Strike detail table
+    # ════════════════════════════════════════════════════════════
     if targets:
         st.markdown("---")
         show_side = st.radio("Show", ["Upside (HIGH)", "Downside (LOW)"], horizontal=True, key="pm_strike_side")
