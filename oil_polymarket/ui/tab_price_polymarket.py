@@ -58,12 +58,14 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
         can_go_forward = next_candidate <= today_utc and st.session_state["day_offset"] > 0
 
         pm_times, pm_prices = [], []
+        prev_p = None
         for h in pm_history:
             try:
                 ts = datetime.fromtimestamp(h["timestamp"], tz=timezone.utc)
+                p = h["price"]
                 if ts.date() == target_date:
                     pm_times.append(ts)
-                    pm_prices.append(h["price"] * 100)
+                    pm_prices.append(p * 100)
             except Exception:
                 continue
 

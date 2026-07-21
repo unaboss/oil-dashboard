@@ -108,12 +108,23 @@ def get_up_down_history():
         return data
 
     result = []
-    seen_tokens = set()
 
-    def _fetch_and_append(token_id):
-        if token_id in seen_tokens:
-            return
-        seen_tokens.add(token_id)
+    pm = get_polymarket_markets()
+    for m in pm.get("markets", []):
+        q = (m.get("question") or "")
+        if "Up or Down" not in q:
+            continue
+        if m.get("closed"):
+            continue
+        ids = m.get("clobTokenIds")
+        if not ids:
+            continue
+        try:
+            ids_parsed = eval(ids) if isinstance(ids, str) else ids
+            token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
+        except Exception:
+            continue
+
         try:
             r = requests.get(
                 "https://clob.polymarket.com/prices-history",
@@ -124,53 +135,17 @@ def get_up_down_history():
             r.raise_for_status()
             for h in r.json().get("history", []):
                 result.append({"timestamp": h["t"], "price": h["p"]})
-        except Exception:
-            pass
-
-    # Current active Up/Down market
-    pm = get_polymarket_markets()
-    for m in pm.get("markets", []):
-        q = (m.get("question") or "")
-        if "Up or Down" not in q:
-            continue
-        ids = m.get("clobTokenIds")
-        if not ids:
-            continue
-        try:
-            ids_parsed = eval(ids) if isinstance(ids, str) else ids
-            token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
-            _fetch_and_append(token_id)
+            break
         except Exception:
             continue
-        break
-
-    # Recently resolved Up/Down markets (yesterday, last Friday)
-    try:
-        r2 = requests.get(
-            f"{POLYMARKET_GAMMA_URL}/public-search",
-            params={"q": "WTI Up or Down", "closed": True, "limit_per_type": 5},
-            timeout=15,
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
-        r2.raise_for_status()
-        for ev in r2.json().get("events", [])[:3]:
-            for m in ev.get("markets", []):
-                q = (m.get("question") or "")
-                if "Up or Down" not in q:
-                    continue
-                ids = m.get("clobTokenIds")
-                if not ids:
-                    continue
-                try:
-                    ids_parsed = eval(ids) if isinstance(ids, str) else ids
-                    token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
-                    _fetch_and_append(token_id)
-                except Exception:
-                    continue
-                break
-    except Exception:
-        pass
 
     result.sort(key=lambda x: x["timestamp"])
+    # Deduplicate at 30-second granularity (API returns interleaved data for both tokens)
+    deduped = {}
+    for entry in result:
+        bucket = entry["timestamp"] // 30
+        if bucket not in deduped or entry["price"] > deduped[bucket]["price"]:
+            deduped[bucket] = entry
+    result = sorted(deduped.values(), key=lambda x: x["timestamp"])
     cache_set("polymarket_updown_history", result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result
