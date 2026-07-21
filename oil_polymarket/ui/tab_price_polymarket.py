@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 
@@ -79,7 +78,26 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 except Exception:
                     pass
 
-            fig0 = make_subplots(specs=[[{"secondary_y": True}]])
+            fig0 = go.Figure()
+
+            fig0.update_layout(
+                yaxis=dict(title="WTI Price ($)"),
+                yaxis2=dict(
+                    title="PM Up Probability (%)",
+                    overlaying="y",
+                    side="right",
+                    range=[0, 100],
+                    tickformat=".0f",
+                ),
+                xaxis=dict(title="Time (UTC)"),
+                height=450, template="plotly_dark",
+                hovermode="x unified",
+                legend=dict(orientation="h", y=1.15),
+            )
+
+            # Anchor: today's WTI open = 50% PM neutral
+            today_open = wti_intraday.get("today_open") if wti_intraday else None
+            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
 
             # Phase background band
             if phase_data is not None and "phase" in phase_data.columns:
@@ -114,58 +132,40 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             fig0.add_trace(go.Scatter(
                 x=pm_times, y=pm_prices, mode="lines",
                 name="PM Up% Odds", line=dict(color="red", width=2),
-            ), secondary_y=True)
+                yaxis="y2",
+            ))
 
             if wti_times:
                 fig0.add_trace(go.Scatter(
                     x=wti_times, y=wti_prices, mode="lines",
                     name="WTI Price", line=dict(color="white", width=2),
-                ), secondary_y=False)
+                ))
             else:
-                # fallback: yesterday close → current
                 wti_x_today = [pd.to_datetime(dates[-2]), pd.to_datetime(dates[-1])]
                 wti_y_today = [close[-2], close[-1]] if len(close) >= 2 else [close[-1], close[-1]]
                 fig0.add_trace(go.Scatter(
                     x=wti_x_today, y=wti_y_today, mode="lines+markers",
                     name="WTI Price (daily)", line=dict(color="white", width=2, dash="dot"),
                     marker=dict(size=6, symbol="diamond"),
-                ), secondary_y=False)
-
-            # Anchor: today's WTI open = 50% PM neutral
-            today_open = wti_intraday.get("today_open") if wti_intraday else None
-            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
+                ))
 
             if anchor_price:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
                                annotation_text=f"50% — Open ${anchor_price:.2f}",
-                               secondary_y=True)
+                               yref="y2")
             else:
                 fig0.add_hline(y=50, line_dash="dot", line_color="gray",
                                annotation_text="50% (neutral)",
-                               secondary_y=True)
+                               yref="y2")
 
             # Center WTI axis around anchor
             if anchor_price and wti_times:
                 all_wti = wti_prices + [anchor_price]
                 max_dev = max(abs(p - anchor_price) for p in all_wti)
                 pad = max(max_dev * 0.3, 0.80)
-                fig0.update_yaxes(
-                    title_text="WTI Price ($)", secondary_y=False,
-                    range=[anchor_price - max_dev - pad, anchor_price + max_dev + pad],
+                fig0.update_layout(
+                    yaxis=dict(range=[anchor_price - max_dev - pad, anchor_price + max_dev + pad])
                 )
-            else:
-                fig0.update_yaxes(title_text="WTI Price ($)", secondary_y=False)
-            fig0.update_yaxes(
-                title_text="PM Up Probability (%)", secondary_y=True,
-                range=[0, 100], tickformat=".0f",
-            )
-            fig0.update_xaxes(title_text="Time (UTC)")
-
-            fig0.update_layout(
-                height=450, template="plotly_dark",
-                hovermode="x unified",
-                legend=dict(orientation="h", y=1.15),
-            )
             st.plotly_chart(fig0, use_container_width=True)
 
             # Phase metrics
