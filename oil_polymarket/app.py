@@ -15,7 +15,7 @@ from data.fetcher_price import get_wti, get_wti_intraday
 from data.fetcher_cot import get_cot_data
 from data.fetcher_eia import get_all_eia_data
 from data.fetcher_aaa import get_aaa_gas_price
-from data.fetcher_polymarket import get_polymarket_markets, get_aggregated_sentiment, get_up_down_history
+from data.fetcher_polymarket import get_polymarket_markets, get_aggregated_sentiment, get_up_down_history_all
 from analysis.polymarket_curve import build_polymarket_signal
 
 from ui.tab_price_polymarket import render_price_polymarket_tab
@@ -67,7 +67,7 @@ def load_polymarket():
 
 @st.cache_data(ttl=CACHE_TTL_PM_HISTORY)
 def load_pm_history():
-    return get_up_down_history()
+    return get_up_down_history_all()
 
 
 def main():

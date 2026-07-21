@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from data.cache import get as cache_get, set as cache_set
 from config import (
@@ -102,19 +102,44 @@ def get_aggregated_sentiment():
     return result
 
 
-def get_up_down_history():
-    data, _, _, stale = cache_get("polymarket_updown_history")
+def get_up_down_history(target_date=None):
+    cache_key = f"polymarket_updown_{target_date.isoformat() if target_date else 'active'}"
+    data, _, _, stale = cache_get(cache_key)
     if data is not None and not stale:
         return data
+
+    from datetime import datetime, timezone
 
     result = []
 
     pm = get_polymarket_markets()
-    for m in pm.get("markets", []):
+    markets_list = pm.get("markets", [])
+
+    # Also search for resolved markets if target_date is in the past
+    if target_date:
+        try:
+            date_str = target_date.strftime("%B %d").replace(" 0", " ")
+            r = requests.get(
+                f"{POLYMARKET_GAMMA_URL}/public-search",
+                params={"q": f"WTI Up or Down {target_date.strftime('%B %d')}", "closed": True, "limit_per_type": 3},
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            r.raise_for_status()
+            resolved_events = r.json().get("events", [])
+            for ev in resolved_events:
+                for m in ev.get("markets", []):
+                    q = (m.get("question") or "")
+                    if "Up or Down" in q:
+                        markets_list.append(m)
+        except Exception:
+            pass
+
+    for m in markets_list:
         q = (m.get("question") or "")
         if "Up or Down" not in q:
             continue
-        if m.get("closed"):
+        if m.get("closed") and not target_date:
             continue
         ids = m.get("clobTokenIds")
         if not ids:
@@ -135,12 +160,43 @@ def get_up_down_history():
             r.raise_for_status()
             for h in r.json().get("history", []):
                 result.append({"timestamp": h["t"], "price": h["p"]})
-            break
         except Exception:
             continue
 
     result.sort(key=lambda x: x["timestamp"])
-    # Skip static initialization values (exactly 0.50, API default for inactive tokens)
+    result = [e for e in result if e["price"] != 0.50]
+    # Dedupe by keeping max price per timestamp
+    deduped = {}
+    for e in result:
+        deduped[e["timestamp"]] = e
+    result = sorted(deduped.values(), key=lambda x: x["timestamp"])
+
+    cache_set(cache_key, result, 300, last_updated=datetime.now(timezone.utc).isoformat())
+    return result
+    return result
+
+
+def get_up_down_history_all():
+    data, _, _, stale = cache_get("polymarket_updown_history")
+    if data is not None and not stale:
+        return data
+
+    from datetime import datetime, timezone
+
+    result = []
+    today = datetime.now(timezone.utc).date()
+
+    for offset in range(5):
+        target = today - timedelta(days=offset)
+        if target.weekday() >= 5:
+            continue
+        try:
+            day_data = get_up_down_history(target)
+            result.extend(day_data)
+        except Exception:
+            continue
+
+    result.sort(key=lambda x: x["timestamp"])
     result = [e for e in result if e["price"] != 0.50]
     cache_set("polymarket_updown_history", result, 300, last_updated=datetime.now(timezone.utc).isoformat())
     return result
