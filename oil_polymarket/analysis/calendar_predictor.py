@@ -9,7 +9,7 @@ from config import (
 )
 
 
-def compute_calendar_signals(wti_data, polymarket_signal, cot_data, eia_data):
+def compute_calendar_signals(wti_data, polymarket_signal, cot_data, eia_data, phase_multiplier=1.0):
     today = datetime.now(timezone.utc).date()
     start_date = today - timedelta(days=CALENDAR_LOOKBACK_DAYS)
     end_date = today + timedelta(days=CALENDAR_FORWARD_DAYS + 1)
@@ -111,6 +111,9 @@ def compute_calendar_signals(wti_data, polymarket_signal, cot_data, eia_data):
         signals["eia_crude"] = eia_score
 
         total = sum(signals.get(s, 0) * SIGNAL_WEIGHTS.get(s, 1) for s in CONFLUENCE_SIGNALS)
+
+        if date_key >= today and phase_multiplier != 1.0:
+            total = total * phase_multiplier
 
         if total >= BULLISH_THRESHOLD:
             direction = "bullish"

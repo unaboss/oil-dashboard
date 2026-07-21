@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from analysis.calendar_predictor import compute_calendar_signals, backtest_calendar
 
 
-def render_calendar_tab(market_data, polymarket_curve, cot_data, eia_data):
+def render_calendar_tab(market_data, polymarket_curve, cot_data, eia_data, phase_multiplier=1.0):
     st.subheader("Trading Calendar — 180d Back | 3d Forward")
 
     if market_data is None:
@@ -20,7 +20,7 @@ def render_calendar_tab(market_data, polymarket_curve, cot_data, eia_data):
     wti = market_data.get("wti", {})
 
     with st.spinner("Computing calendar signals..."):
-        calendar = compute_calendar_signals(wti, polymarket_curve, cot_data, eia_data)
+        calendar = compute_calendar_signals(wti, polymarket_curve, cot_data, eia_data, phase_multiplier)
 
     if not calendar:
         st.warning("No calendar data available.")

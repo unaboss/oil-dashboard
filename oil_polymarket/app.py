@@ -99,6 +99,30 @@ def main():
         pm_raw = load_polymarket()
         pm_history = load_pm_history()
 
+    # Phase multiplier for calendar scoring
+    phase_mult = 1.0
+    if wti_intraday and pm_history:
+        from analysis.phase_detector import align_series, detect_phases
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date()
+        w_times, w_prices = [], []
+        for ts_str, p in zip(wti_intraday.get("timestamps", []), wti_intraday.get("prices", [])):
+            dt = datetime.fromisoformat(ts_str)
+            if dt.date() == today:
+                w_times.append(ts_str)
+                w_prices.append(p)
+        p_times, p_prices = [], []
+        for h in pm_history:
+            ts = datetime.fromtimestamp(h["timestamp"], tz=timezone.utc)
+            if ts.date() == today:
+                p_times.append(ts.isoformat())
+                p_prices.append(h["price"] * 100)
+        if w_times and p_times:
+            anchor = wti_intraday.get("today_open")
+            merged = align_series(w_times, w_prices, p_times, p_prices)
+            if merged is not None and not merged.empty:
+                _, phase_mult, _, _ = detect_phases(merged, anchor)
+
     market_data = {"wti": wti_data}
 
     current_wti = wti_data["close"][-1] if (
@@ -157,7 +181,7 @@ def main():
         render_sentiment_tab(polymarket_signal, pm_sentiment)
 
     with tabs[4]:
-        render_calendar_tab(market_data, polymarket_signal, cot_data, eia_data)
+        render_calendar_tab(market_data, polymarket_signal, cot_data, eia_data, phase_mult)
 
 
 if __name__ == "__main__":
