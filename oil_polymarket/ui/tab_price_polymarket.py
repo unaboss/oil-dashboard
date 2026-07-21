@@ -65,18 +65,19 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             phase_multiplier = 0.0
             lag_minutes = 0
 
+            today_open = wti_intraday.get("today_open") if wti_intraday else None
+            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
+
             if wti_times and pm_times:
                 from analysis.phase_detector import align_series, detect_phases
-                try:
-                    merged = align_series(
-                        [t.isoformat() for t in wti_times], wti_prices,
-                        [t.isoformat() for t in pm_times], pm_prices,
-                    )
+                merged = align_series(
+                    [t.isoformat() for t in wti_times], wti_prices,
+                    [t.isoformat() for t in pm_times], pm_prices,
+                )
+                if merged is not None and not merged.empty:
                     phase_data, phase_multiplier, current_phase, lag_minutes = detect_phases(
                         merged, anchor_price
                     )
-                except Exception:
-                    pass
 
             fig0 = go.Figure()
 
@@ -94,10 +95,6 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.15),
             )
-
-            # Anchor: today's WTI open = 50% PM neutral
-            today_open = wti_intraday.get("today_open") if wti_intraday else None
-            anchor_price = today_open or (close[-2] if len(close) >= 2 else None)
 
             # Phase toggle
             show_phase = st.checkbox("Show Phase Bands", value=True, key="phase_toggle")
