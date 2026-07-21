@@ -56,7 +56,7 @@ def get_wti_intraday():
         return data
 
     today = datetime.now(timezone.utc)
-    start = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+    start = (today - timedelta(days=10)).strftime("%Y-%m-%d")
     end = (today + timedelta(days=1)).strftime("%Y-%m-%d")
 
     df = yf.download(TICKER_WTI, start=start, end=end, interval="5m", progress=False, auto_adjust=True)

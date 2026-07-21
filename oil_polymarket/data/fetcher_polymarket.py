@@ -108,8 +108,26 @@ def get_up_down_history():
         return data
 
     result = []
-    seen_dates = set()
+    seen_tokens = set()
 
+    def _fetch_and_append(token_id):
+        if token_id in seen_tokens:
+            return
+        seen_tokens.add(token_id)
+        try:
+            r = requests.get(
+                "https://clob.polymarket.com/prices-history",
+                params={"market": token_id, "interval": "max"},
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            r.raise_for_status()
+            for h in r.json().get("history", []):
+                result.append({"timestamp": h["t"], "price": h["p"]})
+        except Exception:
+            pass
+
+    # Current active Up/Down market
     pm = get_polymarket_markets()
     for m in pm.get("markets", []):
         q = (m.get("question") or "")
@@ -121,41 +139,21 @@ def get_up_down_history():
         try:
             ids_parsed = eval(ids) if isinstance(ids, str) else ids
             token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
-        except Exception:
-            continue
-
-        try:
-            r = requests.get(
-                "https://clob.polymarket.com/prices-history",
-                params={"market": token_id, "interval": "max"},
-                timeout=15,
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-            r.raise_for_status()
-            history = r.json().get("history", [])
-            for h in history:
-                result.append({
-                    "timestamp": h["t"],
-                    "price": h["p"],
-                })
-                from datetime import datetime, timezone
-                ts = datetime.fromtimestamp(h["t"], tz=timezone.utc)
-                seen_dates.add(ts.date())
+            _fetch_and_append(token_id)
         except Exception:
             continue
         break
 
-    # Also search for recently resolved Up/Down markets for past days
+    # Recently resolved Up/Down markets (yesterday, last Friday)
     try:
         r2 = requests.get(
             f"{POLYMARKET_GAMMA_URL}/public-search",
-            params={"q": "WTI Up or Down", "events_status": "closed", "limit_per_type": 10},
+            params={"q": "WTI Up or Down", "closed": True, "limit_per_type": 5},
             timeout=15,
             headers={"User-Agent": "Mozilla/5.0"},
         )
         r2.raise_for_status()
-        closed_events = r2.json().get("events", [])
-        for ev in closed_events:
+        for ev in r2.json().get("events", [])[:3]:
             for m in ev.get("markets", []):
                 q = (m.get("question") or "")
                 if "Up or Down" not in q:
@@ -166,26 +164,10 @@ def get_up_down_history():
                 try:
                     ids_parsed = eval(ids) if isinstance(ids, str) else ids
                     token_id = str(ids_parsed[0] if isinstance(ids_parsed, list) else ids_parsed)
-                except Exception:
-                    continue
-                try:
-                    r3 = requests.get(
-                        "https://clob.polymarket.com/prices-history",
-                        params={"market": token_id, "interval": "max"},
-                        timeout=15,
-                        headers={"User-Agent": "Mozilla/5.0"},
-                    )
-                    r3.raise_for_status()
-                    history = r3.json().get("history", [])
-                    for h in history:
-                        result.append({
-                            "timestamp": h["t"],
-                            "price": h["p"],
-                        })
+                    _fetch_and_append(token_id)
                 except Exception:
                     continue
                 break
-            break
     except Exception:
         pass
 
