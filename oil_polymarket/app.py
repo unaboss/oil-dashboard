@@ -107,7 +107,7 @@ def main():
         today = datetime.now(timezone.utc).date()
         w_times, w_prices = [], []
         for ts_str, p in zip(wti_intraday.get("timestamps", []), wti_intraday.get("prices", [])):
-            dt = datetime.fromisoformat(ts_str)
+            dt = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
             if dt.date() == today:
                 w_times.append(ts_str)
                 w_prices.append(p)

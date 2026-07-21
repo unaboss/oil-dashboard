@@ -70,7 +70,7 @@ def render_price_polymarket_tab(market_data, polymarket_signal, pm_history=None,
             for ts_str, price in zip(wti_intraday.get("timestamps", []),
                                       wti_intraday.get("prices", [])):
                 try:
-                    dt = datetime.fromisoformat(ts_str)
+                    dt = datetime.fromisoformat(ts_str).replace(tzinfo=timezone.utc)
                     if dt.date() == target_date:
                         wti_times.append(dt)
                         wti_prices.append(price)
