@@ -14,10 +14,20 @@ DEFAULT_END = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 TICKER_WTI = "CL=F"
 
 POLYMARKET_GAMMA_URL = "https://gamma-api.polymarket.com"
+POLYMARKET_CLOB_URL = "https://clob.polymarket.com"
+
+POLYMARKET_OIL_KEYWORDS = [
+    "crude oil",
+    "WTI crude",
+    "oil price",
+    "OPEC oil",
+    "crude",
+]
 
 CACHE_TTL_YFINANCE = 3600
 CACHE_TTL_EIA = 86400 * 3
-CACHE_TTL_PM = 3600
+CACHE_TTL_POLYMARKET = 3600
+VOLUME_MA_DAYS = 20
 
 # EIA Series Codes
 EIA_CRUDE_STOCKS = "/petroleum/stoc/wstk"

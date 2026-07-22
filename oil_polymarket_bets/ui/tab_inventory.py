@@ -91,11 +91,8 @@ def render_inventory_tab(eia_data, pm_markets=None):
             except Exception:
                 end_dt = pd.Timestamp("2026-08-01")
 
-            fig1.add_shape(
-                type="line",
-                x0=pd.Timestamp.now(), x1=end_dt,
-                y0=target_level_m, y1=target_level_m,
-                line=dict(color="orange", width=2, dash="dot"),
+            fig1.add_vline(
+                x=end_dt, line_dash="dash", line_color="orange", line_width=1,
             )
             fig1.add_annotation(
                 x=end_dt, y=target_level_m,
