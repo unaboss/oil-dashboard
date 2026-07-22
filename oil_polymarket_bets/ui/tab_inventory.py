@@ -188,26 +188,26 @@ def render_inventory_tab(eia_data, pm_markets=None):
 
 
 def _extract_inventory_bets(markets):
-    """Extract inventory target bets with strike levels and dates."""
+    """Extract inventory target bets — only 'reserves fall below X by Month' type."""
     bets = []
     for m in markets:
         q = (m.get("question") or "").strip()
         end_date = m.get("endDate", "") or m.get("_event_end", "") or ""
 
-        # Extract numeric target from question (e.g., "fall to 380M" → 380)
-        # Match patterns like: 300M, 380 million, 300 million barrels
-        patterns = [
-            r"(\d+)\s*(?:million|M)\s*(?:barrels)?",
-            r"(\d{3})\s*(?:M|million)",
-            r"(?:below|above|to|at)\s*(\d+\.?\d*)\s*(?:million|M)",
-        ]
+        # Only "reserves fall" type bets
+        if not re.search(r"reserves\s+fall|fall\s+below|fall\s+to", q, re.IGNORECASE):
+            continue
 
+        # Extract numeric target (e.g., "fall below 380M" → 380)
         target = None
-        for pat in patterns:
+        for pat in [
+            r"(\d+)\s*(?:million|M)\s*(?:barrels)?",
+            r"(?:below|above|to|at)\s*(\d+\.?\d*)\s*(?:million|M)",
+        ]:
             match = re.search(pat, q, re.IGNORECASE)
             if match:
                 target = float(match.group(1))
-                if target < 1000:  # likely in millions, convert to K
+                if target < 1000:
                     target = target * 1000
                 break
 
@@ -221,7 +221,14 @@ def _extract_inventory_bets(markets):
             q, re.IGNORECASE
         )
         if date_match:
-            parsed_date = f"2026-{date_match.group(1)[:3]}-{date_match.group(2).zfill(2)}"
+            month_name = date_match.group(1)
+            day = date_match.group(2).zfill(2)
+            month_num = {
+                "January": "01", "February": "02", "March": "03", "April": "04",
+                "May": "05", "June": "06", "July": "07", "August": "08",
+                "September": "09", "October": "10", "November": "11", "December": "12",
+            }.get(month_name, "01")
+            parsed_date = f"2026-{month_num}-{day}"
 
         bets.append({
             "label": q[:80],

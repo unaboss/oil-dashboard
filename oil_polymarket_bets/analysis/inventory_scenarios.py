@@ -50,8 +50,12 @@ def compute_scenarios(crude_data, historical_data=None):
     # ── Ceasefire: half the draw/build rate ──
     ceasefire_rate = avg_weekly_change * 0.5
 
-    # ── Worsening: 2x the rate ──
-    worsening_rate = avg_weekly_change * 2.0
+    # ── Worsening: supplies tighten, draws accelerate ──
+    # If already drawing, double the draw. If building, reverse to a draw.
+    if avg_weekly_change < 0:
+        worsening_rate = avg_weekly_change * 2.0
+    else:
+        worsening_rate = -abs(avg_weekly_change) * 2.0
 
     # ── Back to Normal: seasonal pattern ──
     seasonal_changes = _get_seasonal_pattern(historical_data, current_date, weeks_to_project, changes, dates)
