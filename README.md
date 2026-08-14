@@ -20,7 +20,7 @@ analytics platform that connects geopolitics to markets.
 - A complete Streamlit product: config, data layer, analysis and UI in a small,
   runnable package
 
-A companion app (`oil_polymarket/`) covers Polymarket oil-contract bets.
+Companion apps (`oil_polymarket/`, `oil_polymarket_bets/`) cover Polymarket oil-contract bets.
 
 ## Setup
 
