@@ -1,6 +1,7 @@
 # Oil Dashboard
 
-WTI Crude Oil swing-trading dashboard built with Streamlit.
+A WTI Crude Oil swing-trading dashboard built with Streamlit — an oil-market
+analytics platform that connects geopolitics to markets.
 
 ## Features
 
@@ -9,6 +10,17 @@ WTI Crude Oil swing-trading dashboard built with Streamlit.
 - Signal audit with hit-rate tracking
 - Trade calendar with monthly heatmap
 - Research: Trump event study, bot-mention proxy, losing-trader contrarian data
+
+## What this demonstrates
+
+- Multi-source data engineering: Yahoo Finance, EIA API, CFTC HTML scrape, Google
+  Trends and AAA retail prices combined into one pipeline
+- Analytical trading logic: a confluence model that turns raw market signals into
+  scored trade setups with audit trails
+- A complete Streamlit product: config, data layer, analysis and UI in a small,
+  runnable package
+
+A companion app (`oil_polymarket/`) covers Polymarket oil-contract bets.
 
 ## Setup
 
