@@ -1,7 +1,8 @@
 """Fetch EIA weekly petroleum data via API v2."""
 
+import time
+
 import requests
-import pandas as pd
 from datetime import datetime, timezone
 
 from data.cache import get, set
@@ -40,8 +41,15 @@ def _eia_weekly(route, facets, data_cols, cache_key, start=DEFAULT_START, end=DE
         params[f"facets[{k}][]"] = v
 
     try:
-        resp = requests.get(url, params=params, timeout=30)
-        resp.raise_for_status()
+        resp = None
+        for attempt in range(3):
+            resp = requests.get(url, params=params, timeout=30)
+            if resp.status_code == 200:
+                break
+            # EIA rate-limits with 403/429 and occasional 5xx; retry briefly.
+            time.sleep(0.5 * (attempt + 1))
+        if resp is None or resp.status_code != 200:
+            return None
         js = resp.json()
     except Exception:
         return None
@@ -128,14 +136,25 @@ def get_spr_stocks(start=DEFAULT_START, end=DEFAULT_END):
 
 
 def get_weekly_changes(data_dict):
-    """Compute week-over-week changes for inventory data."""
+    """Compute week-over-week changes for inventory data (newest-first).
+
+    The series is sorted newest-first (periods descending), so change[i] =
+    values[i] - values[i+1]. The oldest row has no prior week -> NaN.
+    """
     if data_dict is None:
         return None
-    vals = pd.Series(data_dict["values"])
-    changes = vals.diff().tolist()
+    vals = data_dict["values"]
+    changes = []
+    for i in range(len(vals) - 1):
+        cur, prev = vals[i], vals[i + 1]
+        if cur is None or prev is None:
+            changes.append(float("nan"))
+        else:
+            changes.append(cur - prev)
+    changes.append(float("nan"))
     return {
         "dates": data_dict["dates"],
-        "values": data_dict["values"],
+        "values": vals,
         "changes": changes,
     }
 

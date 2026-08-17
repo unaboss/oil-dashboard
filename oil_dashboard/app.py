@@ -6,18 +6,20 @@ Streamlit app. 8 tabs, sidebar with refresh and schedule.
 import streamlit as st
 import pandas as pd
 from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+# Load .env from this app's directory (the server may run from the repo root).
+load_dotenv(Path(__file__).parent / ".env")
 
 st.set_page_config(
     page_title="Oil Dashboard",
     page_icon="🛢️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 from config import ROOT_DIR
-from ui.sidebar import render_sidebar
+from ui.sidebar import render_sidebar, render_sidebar_score
 from ui.charts_price import render_price_tab
 from ui.charts_curve import render_curve_tab
 from ui.charts_cot import render_cot_tab
@@ -36,6 +38,7 @@ from data.fetcher_cot import get_cot_data
 from data.fetcher_aaa import get_aaa_gas_price
 from data.fetcher_trends import get_google_trends
 from data.fetcher_bots import get_bot_mentions
+from data.fetcher_statements import get_officials_statements
 
 
 @st.cache_data(ttl=3600)
@@ -63,6 +66,11 @@ def load_bot_trends_data(start, end):
     return get_bot_mentions(start=str(start), end=str(end))
 
 
+@st.cache_data(ttl=1800)
+def load_statements_data():
+    return get_officials_statements()
+
+
 @st.cache_data(ttl=86400)
 def load_aaa_data():
     return get_aaa_gas_price()
@@ -84,6 +92,7 @@ def main():
     with col_ref:
         st.caption("")
 
+    score_placeholder = st.sidebar.empty()
     start_date, end_date = render_sidebar()
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
@@ -97,19 +106,24 @@ def main():
     with st.spinner("Loading COT data..."):
         cot_data = load_cot_data()
 
+    render_sidebar_score(score_placeholder, market_data, eia_data, cot_data)
+
     with st.spinner("Loading sentiment data..."):
         trends_data = load_trends_data(start_str, end_str)
 
     with st.spinner("Loading bot-mention data..."):
         bot_trends_data = load_bot_trends_data(start_str, end_str)
 
+    with st.spinner("Loading officials & military statements..."):
+        statements_data = load_statements_data()
+
     events_df = load_events()
 
     tabs = st.tabs([
         "1. Price & Flows",
         "2. Curve & Divergence",
-        "3. Positioning & COT",
-        "4. Inventories",
+        "3. Inventories",
+        "4. Positioning & COT",
         "5. Retail & Sentiment",
         "6. Confluence Score",
         "7. Trade Calendar",
@@ -126,10 +140,10 @@ def main():
         render_curve_tab(market_data)
 
     with tabs[2]:
-        render_cot_tab(cot_data, market_data)
+        render_inventory_tab(eia_data)
 
     with tabs[3]:
-        render_inventory_tab(eia_data)
+        render_cot_tab(cot_data, market_data)
 
     with tabs[4]:
         render_sentiment_tab(market_data, eia_data, trends_data)
@@ -144,7 +158,7 @@ def main():
         render_audit_tab(market_data, eia_data, cot_data)
 
     with tabs[8]:
-        render_research_tab(market_data, bot_trends_data, start_str, end_str)
+        render_research_tab(market_data, bot_trends_data, start_str, end_str, statements_data)
 
     with tabs[9]:
         render_fibonacci_tab(market_data)

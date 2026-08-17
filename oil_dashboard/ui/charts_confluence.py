@@ -4,26 +4,18 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-from analysis.confluence import compute_confluence, compute_cot_extreme, CONFLUENCE_SIGNALS
+from analysis.confluence import compute_total_score
 from config import BULLISH_THRESHOLD, BEARISH_THRESHOLD
 
 
 def render_confluence_tab(market_data, eia_data, cot_data):
     st.subheader("Confluence Score — Fake Move Detection")
 
-    score = compute_confluence(market_data, eia_data, cot_data, latest_only=True)
-    cot_extreme = compute_cot_extreme(cot_data) if cot_data else {"is_extreme": False}
+    total_result = compute_total_score(market_data, eia_data, cot_data)
+    total = total_result["total"]
+    signals = total_result["signals"]
 
-    # Update COT signal based on extreme check
-    if cot_data and cot_data.get("net_long") is not None:
-        if cot_extreme.get("is_extreme"):
-            score["signals"]["cot"] = -1
-        else:
-            score["signals"]["cot"] = 1
-
-    total = sum(score["signals"].get(s, 0) for s in CONFLUENCE_SIGNALS)
-
-    st.markdown(f"### Score: **{total}/6** — Direction: **{score['direction'].upper()}**")
+    st.markdown(f"### Score: **{total}/6** — Direction: **{total_result['direction'].upper()}**")
 
     cols = st.columns(3)
     signal_config = [
@@ -37,7 +29,7 @@ def render_confluence_tab(market_data, eia_data, cot_data):
 
     for i, (label, key, desc) in enumerate(signal_config):
         col_idx = i % 3
-        val = score["signals"].get(key, 0)
+        val = signals.get(key, 0)
         if val == 1:
             icon = "✅"
             color = "#4CAF50"

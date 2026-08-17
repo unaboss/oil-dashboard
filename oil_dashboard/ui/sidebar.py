@@ -1,13 +1,14 @@
-"""Sidebar UI — cache status, refresh, date range, mini calendar."""
+"""Sidebar UI — confluence score, cache status, refresh, date range, mini calendar."""
 
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 
 from data.cache import invalidate_all
 from config import next_eia_release, next_cot_release
+from analysis.confluence import compute_total_score
 
 
-def render_sidebar():
+def render_sidebar(score_placeholder=None):
     st.sidebar.title("Oil Dashboard")
 
     st.sidebar.markdown("---")
@@ -58,3 +59,20 @@ def render_sidebar():
         st.sidebar.caption(f"{is_today}{dow} {d.strftime('%b %d')}: {label}{is_today}")
 
     return start_date, end_date
+
+
+def render_sidebar_score(score_placeholder, market_data, eia_data, cot_data):
+    """Fill the top-of-sidebar placeholder with the live confluence score."""
+    if score_placeholder is None:
+        return
+    result = compute_total_score(market_data, eia_data, cot_data)
+    total = result["total"]
+    direction = result["direction"]
+    color = "#4CAF50" if direction == "bullish" else "#F44336" if direction == "bearish" else "#FFC107"
+    score_placeholder.markdown(
+        f"<div style='text-align:center;padding:6px 0;'>"
+        f"<span style='color:{color};font-weight:bold;font-size:20px'>{total}/6</span><br>"
+        f"<span style='color:{color};font-weight:bold'>CONFLUENCE — {direction.upper()}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )

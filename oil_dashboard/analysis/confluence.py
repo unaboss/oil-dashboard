@@ -170,3 +170,24 @@ def compute_cot_extreme(cot_data, historical_pct=50):
     is_extreme = abs(nl) > 100000  # heuristic threshold
     side = "long" if nl > 0 else "short"
     return {"is_extreme": is_extreme, "side": side, "net_long": nl}
+
+
+def compute_total_score(market_data, eia_data, cot_data):
+    """Return the latest confluence total + direction, COT extreme included.
+
+    Single source of truth for the composite score so the sidebar and the
+    Confluence tab always agree. Uses the latest daily score then applies the
+    COT extreme override (extreme = -1, non-extreme = +1 when data exists).
+    """
+    score = compute_confluence(market_data, eia_data, cot_data, latest_only=True)
+    if cot_data and cot_data.get("net_long") is not None:
+        extreme = compute_cot_extreme(cot_data)
+        score["signals"]["cot"] = -1 if extreme.get("is_extreme") else 1
+    total = sum(score["signals"].get(s, 0) for s in CONFLUENCE_SIGNALS)
+    if total >= BULLISH_THRESHOLD:
+        direction = "bullish"
+    elif total <= BEARISH_THRESHOLD:
+        direction = "bearish"
+    else:
+        direction = "neutral"
+    return {"total": total, "direction": direction, "signals": score["signals"]}

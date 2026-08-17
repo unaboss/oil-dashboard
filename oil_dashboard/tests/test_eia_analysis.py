@@ -1,4 +1,20 @@
 from analysis.eia_analysis import compute_eia_analysis
+from data.fetcher_eia import get_weekly_changes
+
+
+def test_weekly_changes_newest_first_with_real_latest():
+    """Latest week must be at index 0 with a real value (not NaN)."""
+    data = {"dates": ["2026-08-07", "2026-07-31", "2026-07-24"],
+            "values": [424410.0, 406987.0, 404508.0]}
+    result = get_weekly_changes(data)
+    assert result["changes"][0] == 17423.0   # 424410 - 406987
+    assert result["changes"][1] == 2479.0    # 406987 - 404508
+    import pandas as pd
+    assert pd.isna(result["changes"][2])     # oldest has no prior week
+
+
+def test_weekly_changes_none_input():
+    assert get_weekly_changes(None) is None
 
 
 def _eia_mock(crude_ch, gasoline_ch, distillate_ch, spr_ch):

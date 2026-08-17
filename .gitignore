@@ -8,6 +8,13 @@
 # Cache
 **/_cache_*.json
 
+# Runtime-captured data (accumulates over time; not source)
+oil_dashboard/data/officials_statements.csv
+
+# Streamlit dev-server logs
+*.log
+*.err.log
+
 # Python
 __pycache__/
 *.pyc

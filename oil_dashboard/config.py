@@ -33,6 +33,26 @@ EIA_ROUTES = {
     "distillate_stocks_change": "/petroleum/stoc/wstk",
 }
 
+# ── Refinery Capacity & Utilization ──────────────────────────────────────────────
+# EIA Refinery Capacity Report (annual XLSX) + weekly inputs & utilization API.
+# The report uses a 2-digit year in the filename (refcap26.xlsx).
+REFINERY_CAP_URL = "https://www.eia.gov/petroleum/refinerycapacity/refcap{yy}.xlsx"
+REFINERY_CAP_PRODUCT = "TOTAL OPERABLE CAPACITY"
+REFINERY_CAP_SERIES = "Atmospheric Crude Distillation Capacity (barrels per calendar day)"
+REFINERY_UTIL_ROUTE = "/petroleum/pnp/wiup"
+# Weekly series: percent utilization, crude inputs (Mbbl/d), operable capacity (Mbbl/d)
+REFINERY_UTIL_SERIES = {
+    "utilization_pct": "WPULEUS3",
+    "crude_inputs": "WCRRIUS2",
+    "operable_capacity": "WOCLEUS2",
+}
+CACHE_TTL_REFINERY_CAP = 60 * 60 * 24 * 30   # annual report, refresh monthly
+CACHE_TTL_REFINERY_UTIL = 60 * 60 * 6        # weekly data, refresh every 6h
+# On a failed fetch, retry after a short delay instead of caching the failure
+# under the long capacity TTL (a transient outage would otherwise blank the
+# table for 30 days).
+CACHE_TTL_REFINERY_CAP_FAILURE = 60 * 60
+
 # ── CFTC COT Report ─────────────────────────────────────────────────────────────
 COT_URL = "https://www.cftc.gov/dea/futures/deacmesf.htm"
 COT_CACHE_FILE = DATA_DIR / "cot_cache.csv"
@@ -105,6 +125,47 @@ AUDIT_FORWARD_DAYS = 3  # check 3-day forward return
 # ── Research & Narrative Tab ─────────────────────────────────────────────────────
 RESEARCH_TRUMP_CSV = DATA_DIR / "trump_oil_statements.csv"
 RESEARCH_TRADERS_CSV = DATA_DIR / "losing_traders.csv"
+
+# ── Officials & Military Tracker ─────────────────────────────────────────────────
+# Google News RSS query per watched official (broad news coverage).
+OFFICIALS_WATCH = [
+    {"name": "Secretary of Energy", "query": '"Secretary of Energy"', "category": "officials"},
+    {"name": "Secretary of the Interior", "query": '"Secretary of the Interior"', "category": "officials"},
+    {"name": "Secretary of State", "query": '"Secretary of State"', "category": "officials"},
+    {"name": "Secretary of Defense", "query": '"Secretary of Defense"', "category": "officials"},
+    {"name": "EPA Administrator", "query": '"EPA Administrator"', "category": "officials"},
+    {"name": "FERC Chair", "query": '"FERC"', "category": "officials"},
+    {"name": "EIA Administrator", "query": '"EIA"', "category": "officials"},
+]
+
+# Google News RSS queries for military / Iran tracking. Military items are
+# kept only when they mention a MILITARY_IRAN_KEYWORDS term.
+MILITARY_WATCH = [
+    {"name": "Pentagon", "query": "Pentagon Iran", "category": "military"},
+    {"name": "CENTCOM", "query": "CENTCOM Iran", "category": "military"},
+    {"name": "Department of Defense", "query": '"Department of Defense" Iran', "category": "military"},
+    {"name": "Military & Oil", "query": "military oil", "category": "military"},
+]
+
+# Official agency press-release feeds (primary source).
+AGENCY_FEEDS = [
+    {"name": "DOE", "url": "https://www.energy.gov/rss/press-releases.xml", "category": "energy"},
+    {"name": "DoD", "url": "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?max=20&ContentType=1&Site=945", "category": "military"},
+    {"name": "State", "url": "https://www.state.gov/rss-feed/press-releases/feed/", "category": "state"},
+]
+
+# Oil-relevance keywords: officials/agency items are kept only when one matches.
+OFFICIAL_KEYWORDS = [
+    "oil", "crude", "gasoline", "refinery", "pipeline", "sanction",
+    "energy", "Iran", "OPEC", "petroleum",
+]
+
+# Military items are kept only when they mention one of these (Iran tracking).
+MILITARY_IRAN_KEYWORDS = ["Iran"]
+
+GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
+CACHE_TTL_STATEMENTS = 3 * 60 * 60      # single cache TTL for the tracker feed
+
 
 # Trump event-study windows (trading days)
 TRUMP_PRE_LOOKBACK = 5    # move already done before he spoke
