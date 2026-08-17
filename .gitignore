@@ -13,7 +13,6 @@ oil_dashboard/data/officials_statements.csv
 
 # Streamlit dev-server logs
 *.log
-*.err.log
 
 # Python
 __pycache__/
